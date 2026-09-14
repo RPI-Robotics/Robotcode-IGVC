@@ -1,5 +1,5 @@
 {
-    "name": "ROS 2 Development Container (nvidia)", 
+    "name": "ROS 2 Development Container (wsl-nvidia)", 
     "privileged": true,
     "build": {
         "context": "..",
