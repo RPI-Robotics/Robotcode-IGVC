@@ -1,4 +1,4 @@
-FROM osrf/ros:humble-desktop
+FROM osrf/ros:jazzy-desktop
 ARG USERNAME=$USERNAME
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
@@ -24,22 +24,19 @@ RUN apt-get update && apt-get upgrade -y
 # Unconditional installs
 RUN apt-get install -y \
     python3-pip \
-    ros-humble-rmw-cyclonedds-cpp 
+    ros-jazzy-rmw-cyclonedds-cpp 
 
 ## Simulation only
 RUN if $SIM_ENABLED ; then \
         apt-get update && apt-get install -y \
             # RQT packages
-            ros-humble-rqt-tf-tree ros-humble-rqt-graph ros-humble-rqt-image-view \
+            ros-jazzy-rqt-tf-tree ros-jazzy-rqt-graph ros-jazzy-rqt-image-view \
             # Teleop control keyboard
-            ros-humble-teleop-twist-keyboard \
+            ros-jazzy-teleop-twist-keyboard \
             # External terminal
             gnome-terminal dbus-x11 \
             # Onshape-to-robot dependencies
-            openscad && \
-        # Onshape-to-robot dependencies
-        pip install --no-cache-dir --upgrade pip setuptools wheel && \
-        pip install --no-cache-dir pybullet onshape-to-robot pymeshlab ; fi
+            openscad ; fi
 
 ENV SHELL=/bin/bash
 
