@@ -1,0 +1,3 @@
+[submodule "src/rpilidar_ros"]
+	path = src/rpilidar_ros
+	url = https://github.com/Slamtec/rplidar_ros.git
