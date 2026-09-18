@@ -3,7 +3,7 @@
 1. Follow the [IGVC Docker Setup Guide](https://docs.google.com/document/d/1-VyvY_TrujEbJ-1xbitBwOAzUDWoNYXUCovK7mJRQQ4/edit?usp=sharing) to get Docker installed on your host machine.
     - Follow the [Docker post-installation guide](https://docs.docker.com/engine/install/linux-postinstall/) If you have issues running docker commands
 
-2. Run `git clone https://github.com/RPI-Robotics/Robotcode-IGVC.git` within your WSL or native linux filesystem.
+2. Run `git clone https://github.com/RPI-IGVC-2025/RobotCode2026.git` within your WSL or native linux filesystem.
 
 3. `cd` to the RobotCode2026 directory
 
