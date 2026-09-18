@@ -11,7 +11,7 @@
     "workspaceMount": "source=${localWorkspaceFolder},target=/home/ros2_ws,type=bind",
     "customizations": {
         "vscode": {
-            "extensions":[
+            "extensions": [
                 "ms-vscode.cpptools",
                 "ms-vscode.cpptools-themes",
                 "twxs.cmake",
@@ -34,13 +34,15 @@
         "--net=host",
         "--pid=host",
         "--ipc=host",
-        "-p", "8765:8765"
-        
+        "-p",
+        "8765:8765"
     ],
     "mounts": [
-       "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
-       "source=/dev/dri,target=/dev/dri,type=bind,consistency=cached"
+        "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
+        "source=/dev/dri,target=/dev/dri,type=bind,consistency=cached"
     ],
-    "postCreateCommand": ". .devcontainer/setup.bash && sudo rosdep update --rosdistro=jazzy && sudo rosdep install --from-paths src --ignore-src -y --rosdistro=jazzy && sudo chown -R $(whoami) /home/ros2_ws/ && sudo chmod a+rw . -R && (rm -r build/ || true) && colcon build --symlink-install",
-    "forwardPorts": [8765]
+    "postCreateCommand": ". .devcontainer/setup.bash && sudo rosdep update --rosdistro=jazzy && sudo rosdep install --from-paths src --ignore-src -y --rosdistro=jazzy && sudo chown -R $(whoami) /home/ros2_ws/ && sudo chmod a+rw . -R && (rm -r build/ || true) && colcon build --symlink-install --packages-skip-regex zed_*",
+    "forwardPorts": [
+        8765
+    ]
 }

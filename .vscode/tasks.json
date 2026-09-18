@@ -18,7 +18,6 @@
 			},
 			"label": "colcon: Colcon Build Release"
 		},
-
 		{
 			"type": "colcon",
 			"args": [
@@ -74,7 +73,7 @@
 		{
 			"label": "IGVC: Open RTAB",
 			"type": "shell",
-			"command": "source install/setup.bash; ros2 launch igvc_slam igvc_slam.launch",
+			"command": "source install/setup.bash; ros2 launch igvc_slam dual_ekf.launch.py",
 			"problemMatcher": []
 		},
 		{
