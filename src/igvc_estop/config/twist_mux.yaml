@@ -1,11 +1,6 @@
 twist_mux:
   ros__parameters:
     topics:
-      navigation:
-        topic: /cmd_vel_scaled
-        timeout: 0.5
-        priority: 10
-
       teleop:
         topic: /teleop/cmd_vel
         timeout: 0.5
