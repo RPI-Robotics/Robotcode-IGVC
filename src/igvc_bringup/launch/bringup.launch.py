@@ -42,19 +42,6 @@ def generate_launch_description():
             description='Launch Nav2'
         ),
 
-
-        #Estop
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_estop'),
-                 '/launch',
-                 '/igvc_estop.launch.py']
-            ),
-            launch_arguments={
-                'use_sim_gpio': use_sim
-            }.items()
-        ),
-
         # Publishers & URDF
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
