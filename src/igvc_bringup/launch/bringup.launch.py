@@ -12,6 +12,10 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     use_sim = LaunchConfiguration('use_sim')
     use_mock_hardware = LaunchConfiguration('use_mock_hardware')
+    sim_world = LaunchConfiguration('sim_world')
+    use_slam = LaunchConfiguration('use_slam')
+    use_nav = LaunchConfiguration('use_nav')
+    
     
     return LaunchDescription([
         # Launch Arguments
@@ -72,7 +76,7 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(
                 [FindPackageShare('igvc_gazebo'),
                  '/launch/',
-                 LaunchConfiguration('sim_world'),
+                 sim_world,
                  '.launch.py'
                 ]
             ),
@@ -105,7 +109,7 @@ def generate_launch_description():
                 '/launch',
                 '/dual_ekf.launch.py']
             ),     
-            condition = IfCondition(LaunchConfiguration('use_slam'))
+            condition = IfCondition(use_slam)
         ),
 
         # CV
@@ -123,6 +127,6 @@ def generate_launch_description():
                 '/launch',
                 '/igvc_nav.launch.py']
             ),
-            condition = IfCondition(LaunchConfiguration('use_nav'))
+            condition = IfCondition(use_nav)
         )
     ])
