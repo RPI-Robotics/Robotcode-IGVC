@@ -4,7 +4,7 @@
   <name>igvc_cv</name>
   <version>0.0.0</version>
   <description>Computer Vision for the 2026 IGVC Robot</description>
-  <maintainer email="laursc@rpi.edu">Camden Laursen-Carr</maintainer>
+  <maintainer email="beyeni@rpi.edu">Ilan Beyen</maintainer>
   <license>MIT</license>
 
   <depend>rclpy</depend>
