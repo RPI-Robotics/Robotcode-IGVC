@@ -8,6 +8,11 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.launch_description_sources import FrontendLaunchDescriptionSource, PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 
+def include(package, launch_file, **kwargs):
+    return IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([FindPackageShare(package), '/launch/', launch_file]),
+        **kwargs
+    )
 
 def generate_launch_description():
     use_sim = LaunchConfiguration('use_sim')
@@ -45,89 +50,24 @@ def generate_launch_description():
         ),
     ]
     
+    estop = include('igvc_estop', 'igvc_estop.launch.py', launch_arguments={'use_sim_gpio': use_sim}.items()),
+    description = include('igvc_description', 'publisher.launch.py', launch_arguments={'use_mock_hardware': use_mock_hardware}.items()),
+    simulation = include('igvc_gazebo', [sim_world, '.launch.py'], condition=IfCondition(use_sim)),
+    control = include('igvc_hardware', 'control.launch.py'),
+    real_hardware = include('igvc_hardware', 'hardware.launch.py', condition=UnlessCondition(use_mock_hardware)),
+    slam = include('igvc_slam', 'dual_ekf.launch.py', condition=IfCondition(use_slam)),
+    cv = include('igvc_cv', 'igvc_cv.launch.py'),
+    nav = include('igvc_nav', 'igvc_nav.launch.py', condition=IfCondition(use_nav)),
+
+    
     return LaunchDescription([
         *launch_args,
-
-        #Estop
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_estop'),
-                 '/launch',
-                 '/igvc_estop.launch.py']
-            ),
-            launch_arguments={
-                'use_sim_gpio': use_sim
-            }.items()
-        ),
-
-        # Publishers & URDF
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_description'),
-                 '/launch',
-                 '/publisher.launch.py']
-            ),
-            launch_arguments={
-                'use_mock_hardware': use_mock_hardware
-                }.items()
-        ),
-
-        # Simulation
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_gazebo'),
-                 '/launch/',
-                 sim_world,
-                 '.launch.py'
-                ]
-            ),
-            condition=IfCondition(use_sim),
-        ),
-
-        # ROS2_Control
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_hardware'),
-                 '/launch',
-                 '/control.launch.py']
-            ),
-        ),
-
-        # Real hardware
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_hardware'),
-                  '/launch',
-                  '/hardware.launch.py']
-            ),
-            condition = UnlessCondition(use_mock_hardware)
-        ),
-        
-        # SLAM
-        IncludeLaunchDescription(        
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_slam'),
-                '/launch',
-                '/dual_ekf.launch.py']
-            ),     
-            condition = IfCondition(use_slam)
-        ),
-
-        # CV
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_cv'),
-                '/launch',
-                '/igvc_cv.launch.py']
-            )
-        ),
-        
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [FindPackageShare('igvc_nav'),
-                '/launch',
-                '/igvc_nav.launch.py']
-            ),
-            condition = IfCondition(use_nav)
-        )
+        estop,
+        description,
+        simulation,
+        control,
+        real_hardware,
+        slam,
+        cv,
+        nav,
     ])
