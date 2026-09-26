@@ -10,7 +10,7 @@ from launch_ros.substitutions import FindPackageShare
 
 def include(package, launch_file, **kwargs):
     return IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([FindPackageShare(package), '/launch/', launch_file]),
+        PythonLaunchDescriptionSource([FindPackageShare(package), '/launch/', *launch_file]),
         **kwargs
     )
 
@@ -50,14 +50,14 @@ def generate_launch_description():
         ),
     ]
     
-    estop = include('igvc_estop', 'igvc_estop.launch.py', launch_arguments={'use_sim_gpio': use_sim}.items()),
-    description = include('igvc_description', 'publisher.launch.py', launch_arguments={'use_mock_hardware': use_mock_hardware}.items()),
-    simulation = include('igvc_gazebo', [sim_world, '.launch.py'], condition=IfCondition(use_sim)),
-    control = include('igvc_hardware', 'control.launch.py'),
-    real_hardware = include('igvc_hardware', 'hardware.launch.py', condition=UnlessCondition(use_mock_hardware)),
-    slam = include('igvc_slam', 'dual_ekf.launch.py', condition=IfCondition(use_slam)),
-    cv = include('igvc_cv', 'igvc_cv.launch.py'),
-    nav = include('igvc_nav', 'igvc_nav.launch.py', condition=IfCondition(use_nav)),
+    estop = include('igvc_estop', 'igvc_estop.launch.py', launch_arguments={'use_sim_gpio': use_sim}.items())
+    description = include('igvc_description', 'publisher.launch.py', launch_arguments={'use_mock_hardware': use_mock_hardware}.items())
+    simulation = include('igvc_gazebo', [sim_world, '.launch.py'], condition=IfCondition(use_sim))
+    control = include('igvc_hardware', 'control.launch.py')
+    real_hardware = include('igvc_hardware', 'hardware.launch.py', condition=UnlessCondition(use_mock_hardware))
+    slam = include('igvc_slam', 'dual_ekf.launch.py', condition=IfCondition(use_slam))
+    cv = include('igvc_cv', 'igvc_cv.launch.py')
+    nav = include('igvc_nav', 'igvc_nav.launch.py', condition=IfCondition(use_nav))
 
     
     return LaunchDescription([
