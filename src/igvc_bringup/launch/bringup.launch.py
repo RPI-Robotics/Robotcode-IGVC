@@ -16,9 +16,7 @@ def generate_launch_description():
     use_slam = LaunchConfiguration('use_slam')
     use_nav = LaunchConfiguration('use_nav')
     
-    
-    return LaunchDescription([
-        # Launch Arguments
+    launch_args = [
         DeclareLaunchArgument(
             'use_sim',
             default_value='false',
@@ -45,7 +43,10 @@ def generate_launch_description():
             default_value='true', 
             description='Launch Nav2'
         ),
-
+    ]
+    
+    return LaunchDescription([
+        *launch_args,
 
         #Estop
         IncludeLaunchDescription(
