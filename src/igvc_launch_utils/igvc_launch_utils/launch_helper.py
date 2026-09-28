@@ -17,3 +17,10 @@ def node(package, executable, **kwargs):
         output="screen",
         **kwargs
     )
+    
+def config(package, config_file):
+    return PathJoinSubstitution(
+        FindPackageShare(package),
+        "/config/",
+        *config_file,
+    )
