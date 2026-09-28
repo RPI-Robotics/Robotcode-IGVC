@@ -1,7 +1,8 @@
 from launch.actions import IncludeLaunchDescription
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.substitutions import FindPackageShare, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
+from launch.substitutions import PathJoinSubstitution
 
 def launch_file(package, launch_file, **kwargs):
     return IncludeLaunchDescription(
