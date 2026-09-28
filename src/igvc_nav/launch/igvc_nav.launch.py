@@ -12,8 +12,8 @@ from igvc_launch_utils.launch_helper import *
 def generate_launch_description():
     config_path = config('igvc_nav', 'nav2_params.yaml')
     
-    nav2 = include('nav2_bringup', 'navigation_launch.py', launch_arguments={'params_file' : config_path}.items())
-    vel_scaler = include('vel_scaler', 'vel_scaler.launch.py')
+    nav2 = launch_file('nav2_bringup', 'navigation_launch.py', launch_arguments={'params_file' : config_path}.items())
+    vel_scaler = launch_file('vel_scaler', 'vel_scaler.launch.py')
     
     return LaunchDescription([
         nav2,
