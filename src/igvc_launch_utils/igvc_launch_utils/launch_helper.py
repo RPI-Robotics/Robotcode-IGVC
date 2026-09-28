@@ -24,5 +24,5 @@ def config(package, config_file):
     return PathJoinSubstitution([
         FindPackageShare(package),
         "/config/",
-        *config_file,
+        config_file,
     ])
