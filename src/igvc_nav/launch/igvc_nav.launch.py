@@ -7,12 +7,7 @@ from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
-
-def include(package, launch_file, **kwargs):
-    return IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([FindPackageShare(package), '/launch/', *launch_file]),
-        **kwargs
-    )
+from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
     config_path = LaunchConfiguration('config_path')
