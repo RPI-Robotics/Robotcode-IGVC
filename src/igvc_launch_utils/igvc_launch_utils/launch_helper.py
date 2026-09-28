@@ -21,8 +21,8 @@ def node(package, executable, **kwargs):
     )
     
 def config(package, config_file):
-    return PathJoinSubstitution(
+    return PathJoinSubstitution([
         FindPackageShare(package),
         "/config/",
         *config_file,
-    )
+    ])
