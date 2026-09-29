@@ -5,6 +5,7 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
 
@@ -20,26 +21,28 @@ def generate_launch_description():
   use_robot_state_pub = LaunchConfiguration('use_robot_state_pub')
   use_sim_time = LaunchConfiguration('use_sim_time')
 
-  # Declare the launch arguments  
-  declare_urdf_model_path_cmd = DeclareLaunchArgument(
-    name='urdf_model', 
-    default_value=default_urdf_model_path, 
-    description='Absolute path to robot urdf file')
-  
-  declare_use_joint_state_publisher_cmd = DeclareLaunchArgument(
-    name='gui',
-    default_value='false',
-    description='Flag to enable joint_state_publisher_gui')
-  
-  declare_use_robot_state_pub_cmd = DeclareLaunchArgument(
-    name='use_robot_state_pub',
-    default_value='true',
-    description='Whether to start the robot state publisher')
-
-  declare_use_sim_time_cmd = DeclareLaunchArgument(
-    name='use_sim_time',
-    default_value='false',
-    description='Use simulation (Gazebo) clock if true')
+  launch_args = [
+    DeclareLaunchArgument(
+      name='urdf_model', 
+      default_value=default_urdf_model_path, 
+      description='Absolute path to robot urdf file'
+    ),
+    DeclareLaunchArgument(
+      name='gui',
+      default_value='false',
+      description='Flag to enable joint_state_publisher_gui'
+    ),
+    DeclareLaunchArgument(
+      name='use_robot_state_pub',
+      default_value='true',
+      description='Whether to start the robot state publisher'
+    ),
+    DeclareLaunchArgument(
+      name='use_sim_time',
+      default_value='false',
+      description='Use simulation (Gazebo) clock if true'
+    )
+  ]
    
   # Specify the actions
   
@@ -56,6 +59,7 @@ def generate_launch_description():
     package='joint_state_publisher_gui',
     executable='joint_state_publisher_gui',
     name='joint_state_publisher_gui')
+  
   # Subscribe to the joint states of the robot, and publish the 3D pose of each link.
   start_robot_state_publisher_cmd = Node(
     condition=IfCondition(use_robot_state_pub),
@@ -78,29 +82,19 @@ def generate_launch_description():
   )
 
   # Create the launch description and populate
-  # Create the launch description and populate
-  launch_description = LaunchDescription(
-    [
+  return LaunchDescription([
+        *launch_args,
         DeclareLaunchArgument(
             'use_mock_hardware',
             default_value='false',
             description='Run in Simulation'
         ),
-
-    ]
-  )
-
-
-  # Declare the launch options
-  launch_description.add_action(declare_urdf_model_path_cmd)
-  launch_description.add_action(declare_use_joint_state_publisher_cmd)
-  launch_description.add_action(declare_use_robot_state_pub_cmd)  
-  launch_description.add_action(declare_use_sim_time_cmd)
-
-  # Add any actions
-  launch_description.add_action(start_foxglove_bridge_cmd)
-  launch_description.add_action(start_joint_state_publisher_cmd)
-  launch_description.add_action(start_joint_state_publisher_gui_node)
-  launch_description.add_action(start_robot_state_publisher_cmd)
-
-  return launch_description
+        declare_urdf_model_path_cmd,
+        declare_use_joint_state_publisher_cmd,
+        declare_use_robot_state_pub_cmd,
+        declare_use_sim_time_cmd,
+        start_foxglove_bridge_cmd,
+        start_joint_state_publisher_cmd,
+        start_joint_state_publisher_gui_node,
+        start_robot_state_publisher_cmd
+    ])
