@@ -21,7 +21,7 @@ def get_node(package, executable, **kwargs):
     )
     
 def get_config(package, config_file):
-    return path(package, "config", config_file)
+    return get_path(package, "config", config_file)
     
 def get_path(package, folder, file):
     return PathJoinSubstitution([
