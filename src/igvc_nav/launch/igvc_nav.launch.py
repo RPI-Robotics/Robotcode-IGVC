@@ -16,6 +16,5 @@ def generate_launch_description():
     vel_scaler = get_launch_file('vel_scaler', 'vel_scaler.launch.py')
     
     return LaunchDescription([
-        nav2,
-        vel_scaler
+        nav2
     ])
