@@ -33,7 +33,8 @@ def generate_launch_description():
     spawn_entity = get_node(
         'ros_gz_sim', 
         'create', 
-        arguments=['-topic', 'robot_description', '-name', 'igvc_robot'])
+        arguments=['-topic', 'robot_description', '-name', 'igvc_robot']
+    )
     
     ros_gz_bridge = get_node(
         "ros_gz_bridge",
