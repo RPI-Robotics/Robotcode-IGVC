@@ -11,9 +11,7 @@ def generate_launch_description():
     config_path = get_config("igvc_nav", 'nav2_params.yaml')
 
     nav2 = get_launch_file("igvc_nav", "igvc_nav.launch.py", launch_arguments={'params_file' : config_path}.items())
-    vel_scaler = get_launch_file("vel_scaler", "vel_scaler.launch.py")
 
     return LaunchDescription([
-        nav2,
-        vel_scaler
+        nav2
     ])
