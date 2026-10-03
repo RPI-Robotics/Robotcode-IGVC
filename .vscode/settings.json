@@ -1,10 +1,14 @@
 {
     "ROS2.distro": "jazzy",
     "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/install/**/lib/python3.12/site-packages",
+        "${workspaceFolder}/install/local/lib/python3.12/dist-packages",
         "/opt/ros/jazzy/opt/gz_math_vendor/lib/python",
         "/opt/ros/jazzy/lib/python3.12/site-packages"
     ],
     "python.analysis.extraPaths": [
+        "${workspaceFolder}/install/**/lib/python3.12/site-packages",
+        "${workspaceFolder}/install/local/lib/python3.12/dist-packages",
         "/opt/ros/jazzy/opt/gz_math_vendor/lib/python",
         "/opt/ros/jazzy/lib/python3.12/site-packages"
     ]
