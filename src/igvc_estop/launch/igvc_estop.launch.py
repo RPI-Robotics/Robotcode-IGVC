@@ -9,11 +9,7 @@ from igvc_launch_utils.launch_helper import *
 def generate_launch_description():
     use_sim_gpio = LaunchConfiguration("use_sim_gpio")
     
-    twist_mux_config = PathJoinSubstitution([
-        FindPackageShare("igvc_estop"),
-        "config",
-        "twist_mux.yaml",
-    ])
+    twist_mux_config = get_config("igvc_estop", "twist_mux.yaml")
     
     launch_args = [
         DeclareLaunchArgument(
