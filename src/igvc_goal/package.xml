@@ -4,7 +4,7 @@
   <name>igvc_goal</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="zanebrotherton@gmail.com">root</maintainer>
+  <maintainer email="beyeni@rpi.edu">Ilan Beyen</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
