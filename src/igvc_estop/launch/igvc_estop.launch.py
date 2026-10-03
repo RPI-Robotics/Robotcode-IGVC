@@ -3,57 +3,55 @@ from launch_ros.actions import Node
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 from launch.actions import DeclareLaunchArgument
+from igvc_launch_utils.launch_helper import *
 
 
 def generate_launch_description():
     use_sim_gpio = LaunchConfiguration("use_sim_gpio")
     
-    twist_mux_config = PathJoinSubstitution([
-        FindPackageShare("igvc_estop"),
-        "config",
-        "twist_mux.yaml",
-    ])
-
-    return LaunchDescription([
+    twist_mux_config = get_config("igvc_estop", "twist_mux.yaml")
+    
+    launch_args = [
         DeclareLaunchArgument(
             "use_sim_gpio",
             default_value="false",
             description="Use sim GPIO topic instead of Jetson GPIO",
-        ),
+        )
+    ]
     
-        Node(
-            package="twist_mux",
-            executable="twist_mux",
-            name="twist_mux",
-            output="screen",
-            parameters=[twist_mux_config],
-            remappings=[
-                # twist_mux output topic -> controller cmd_vel input
-                ("cmd_vel_out", "/bot_drive_controller/cmd_vel"),
-            ],
-        ),
+    twist_mux_node = get_node(
+        'twist_mux',
+        'twist_mux',
+        parameters=[twist_mux_config],
+        remappings=[
+            # twist_mux output topic -> controller cmd_vel input
+            ("cmd_vel_out", "/bot_drive_controller/cmd_vel"),
+        ]
+    )
+    
+    igvc_estop_node = get_node(
+        'igvc_estop',
+        'igvc_estop_node',
+        parameters=[{
+            "use_sim_gpio": use_sim_gpio,
+            "sim_gpio_topic": "/sim_gpio_estop",
+            "gpio_pin": 27,
+            "gpio_mode": "BCM",
+            "active_high": True,
 
-        Node(
-            package="igvc_estop",
-            executable="igvc_estop_node",
-            name="igvc_estop",
-            output="screen",
-            parameters=[{
-                "use_sim_gpio": use_sim_gpio,
-                "sim_gpio_topic": "/sim_gpio_estop",
+            "mechanical_estop_pin": 22,
+            "mechanical_active_low": False,
 
-                "gpio_pin": 27,
-                "gpio_mode": "BCM",
-                "active_high": True,
+            "latch": True,
+            "poll_hz": 50.0,
 
-                "mechanical_estop_pin": 22,
-                "mechanical_active_low": False,
+            "lock_topic": "/emergency_stop_lock",
+            "reset_topic": "/emergency_stop_reset",
+        }],
+    )
 
-                "latch": True,
-                "poll_hz": 50.0,
-
-                "lock_topic": "/emergency_stop_lock",
-                "reset_topic": "/emergency_stop_reset",
-            }],
-        ),
+    return LaunchDescription([
+        *launch_args,
+        twist_mux_node,
+        igvc_estop_node
     ])
