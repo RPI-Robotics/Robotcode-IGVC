@@ -4,11 +4,10 @@ from launch.substitutions import LaunchConfiguration
 from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
-    world = LaunchConfiguration('world')
-    
     default_world = get_path('igvc_gazebo', 'worlds', 'track_v1.sdf')
-    
     bridge_params = get_config('igvc_gazebo', 'gz_bridge.yaml')
+    
+    world = LaunchConfiguration('world')
     
     launch_args = [
         DeclareLaunchArgument(
