@@ -21,7 +21,6 @@ def generate_launch_description():
                                 )
 
     return LaunchDescription([
-        param_file,
         ekf_node_odom,
         ekf_node_map,
         navsat_transform
