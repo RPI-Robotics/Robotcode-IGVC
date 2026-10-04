@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from igvc_launch_utils.launch_utils import *
 
 def generate_launch_description():
-    param_file = get_launch_file('igvc_slam', 'dual_ekf_params.yaml')
+    param_file = get_config('igvc_slam', 'dual_ekf_params.yaml')
     
     ekf_node_odom = get_node('robot_localization', 'ekf_node', name='ekf_node_odom', parameters=[param_file], 
                              remappings=[('odometry/filtered', '/odometry/local')],
@@ -21,6 +21,7 @@ def generate_launch_description():
                                 )
 
     return LaunchDescription([
+        param_file,
         ekf_node_odom,
         ekf_node_map,
         navsat_transform
