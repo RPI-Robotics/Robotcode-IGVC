@@ -1,12 +1,8 @@
-import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import Command, LaunchConfiguration
-from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 from igvc_launch_utils.launch_helper import *
-
 
 def generate_launch_description():
   
@@ -45,38 +41,25 @@ def generate_launch_description():
   # Specify the actions
   
   # Publish the joint state values for the non-fixed joints in the URDF file.
-  start_joint_state_publisher_cmd = get_node(
-    'joint_state_publisher', 
-    'joint_state_publisher', 
-    condition=UnlessCondition(gui))
+  start_joint_state_publisher_cmd = get_node('joint_state_publisher', 'joint_state_publisher', condition=UnlessCondition(gui))
   
   # A GUI to manipulate the joint state values
-  start_joint_state_publisher_gui_node = get_node(
-    'joint_state_publisher_gui',
-    'joint_state_publisher_gui',
-    condition=IfCondition(gui)
-  )
+  start_joint_state_publisher_gui_node = get_node('joint_state_publisher_gui', 'joint_state_publisher_gui', condition=IfCondition(gui))
   
   # Subscribe to the joint states of the robot, and publish the 3D pose of each link.
-  start_robot_state_publisher_cmd = get_node(
-    'robot_state_publisher',
-    'robot_state_publisher',
-    condition=IfCondition(use_robot_state_pub),
-    parameters=[{'use_sim_time': use_sim_time, 
-      'robot_description': Command(
-        [
-          'xacro ', urdf_model,
-          ' use_mock_hardware:=', LaunchConfiguration('use_mock_hardware')
-        ]
-      ),
-    }],
-  )
+  start_robot_state_publisher_cmd = get_node('robot_state_publisher', 'robot_state_publisher', condition=IfCondition(use_robot_state_pub), 
+                                             parameters=[{
+                                                'use_sim_time': use_sim_time, 
+                                                'robot_description': Command(
+                                                  [
+                                                    'xacro ', urdf_model,
+                                                  ' use_mock_hardware:=', LaunchConfiguration('use_mock_hardware')
+                                                  ]),
+                                                }],
+                                             )
   
   # Create foxglove bridge
-  start_foxglove_bridge_cmd = get_node(
-    'foxglove_bridge',
-    'foxglove_bridge'
-  )
+  start_foxglove_bridge_cmd = get_node('foxglove_bridge', 'foxglove_bridge')
 
   return LaunchDescription([
     *launch_args,
