@@ -3,7 +3,7 @@ from igvc_launch_utils.launch_helper import *
 
 
 def generate_launch_description():
-    params_file = get_config("igvc_cv", "nav2_params.yaml")
+    params_file = get_config("igvc_cv", "lane_points.yaml")
 
     lane_points_node = get_node("igvc_cv", "lane_points_node", parameters=[params_file])
 
