@@ -53,7 +53,7 @@ def generate_launch_description():
   ]
    
   # Specify the publisher action
-  start_publisher_cmd = get_launch_file('igvc_description', 'launch/publisher.launch.py', 
+  start_publisher_cmd = get_launch_file('igvc_description', 'publisher.launch.py', 
                                         launch_arguments={
                                           'urdf_model' : urdf_model, 
                                           'gui' : gui, 
