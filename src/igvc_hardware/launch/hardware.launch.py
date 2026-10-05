@@ -5,6 +5,14 @@ from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
+from enum import Enum
+
+class IMU_OUTPUT(Enum):
+    VEL_ANG_TEMP_DATA = 0
+    ACCEL_GYRO_TEMP_DATA = 1
+    IMU = 2
+    IMU_FULL_MEASURE_DATA = 3
+
 def generate_launch_description():
     # Declare args
     
@@ -71,7 +79,8 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             "imu_device_name": "adis16475-2",
-            "iio_context_string": "ip:'10.42.0.2'"
+            "iio_context_string": "ip:'10.42.0.2'",
+            "measured_data_topic_selection": IMU_OUTPUT.IMU
         }]
     )
 
