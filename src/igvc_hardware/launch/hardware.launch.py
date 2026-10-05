@@ -5,8 +5,6 @@ from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
-IMU_NAME = "TODO" # TODO
-
 def generate_launch_description():
     # Declare args
     
@@ -66,12 +64,24 @@ def generate_launch_description():
         }],
     )
 
+    # TODO since this relies on a pi to start up for the remote context, may need to delay this
+    launch_imu_node = Node(
+        package='adi_imu',
+        executable='adi_imu_node',
+        output='screen',
+        parameters=[{
+            "imu_device_name": "adis16475-2",
+            "iio_context_string": "ip:'10.42.0.2'"
+        }]
+    )
+
     nodes = [
         launch_navsat_node,
         launch_led_bridge_node,
         launch_zed_node,
         launch_rplidar_node,
-        launch_compass_bridge_node
+        launch_compass_bridge_node,
+        launch_imu_node
     ]
 
     return LaunchDescription(nodes)
