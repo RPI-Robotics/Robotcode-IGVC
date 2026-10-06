@@ -1,24 +1,15 @@
-import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 from igvc_launch_utils.launch_helper import *
 
-
 def generate_launch_description():
-
-  # Set the path to this package.
-  igvc_description_package = FindPackageShare(package='igvc_description').find('igvc_description')
-
   # Set the path to the RViz configuration settings
-  default_rviz_config_path = os.path.join(igvc_description_package, 'rviz/rviz_settings.rviz')
+  default_rviz_config_path = get_config('igvc_description', 'rviz/rviz_settings.rviz')
   
   # Set the path to the URDF file
-  default_urdf_model_path = os.path.join(igvc_description_package, 'urdf/robot.urdf.xacro')
+  default_urdf_model_path = get_path('igvc_description', 'urdf', 'robot.urdf.xacro')
 
   # Launch configuration variables specific to simulation
   gui = LaunchConfiguration('gui')
@@ -62,24 +53,16 @@ def generate_launch_description():
   ]
    
   # Specify the publisher action
-  start_publisher_cmd = get_launch_file(
-    'igvc_description',
-    'launch/publisher.launch.py',
-    launch_arguments={
-      'urdf_model' : urdf_model,
-      'gui' : gui,
-      'use_robot_state_pub' : use_robot_state_pub,
-      'use_sim_time' : use_sim_time,
-    }.items()
-  )
+  start_publisher_cmd = get_launch_file('igvc_description', 'publisher.launch.py', 
+                                        launch_arguments={
+                                          'urdf_model' : urdf_model, 
+                                          'gui' : gui, 
+                                          'use_robot_state_pub' : use_robot_state_pub, 
+                                          'use_sim_time' : use_sim_time}.items()
+                                        )
 
   # Launch RViz
-  start_rviz_cmd = get_node(
-    "rviz2",
-    "rviz2",
-    condition=IfCondition(use_rviz),
-    arguments=['-d', rviz_config_file]
-  )
+  start_rviz_cmd = get_node("rviz2", "rviz2", condition=IfCondition(use_rviz), arguments=['-d', rviz_config_file])
 
   return LaunchDescription([
     #Launch options
