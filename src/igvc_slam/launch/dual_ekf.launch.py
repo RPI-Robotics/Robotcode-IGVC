@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from igvc_launch_utils.launch_utils import *
+from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
     param_file = get_config('igvc_slam', 'dual_ekf_params.yaml')
