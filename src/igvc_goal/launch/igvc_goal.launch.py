@@ -2,7 +2,7 @@ from launch import LaunchDescription
 from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
-    lane_director_node = get_node('igvc_goal','lane_director_node',parameters=[{'enabled_topic': '/enabled',
+    lane_director_node = get_node('igvc_goal', 'lane_director_node', parameters=[{'enabled_topic': '/enabled',
                                                                                 'lane_points_topic': '/lanes/points',
                                                                                 'base_frame': 'base_link',
                                                                                 'global_frame': 'map',
