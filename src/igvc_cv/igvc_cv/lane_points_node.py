@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import math
-import struct
 from typing import List, Tuple
 
 import cv2
@@ -255,45 +254,48 @@ class LanePointsNode(Node):
 
         return cloud_uvs
 
+    def cloud_to_xyz_matrix(self, cloud_msg: PointCloud2) -> np.ndarray:
+        """Return an (H, W, 3) array where [i][j] is the XYZ point at pixel row i, column j."""
+        pts = point_cloud2.read_points(
+            cloud_msg,
+            field_names=("x", "y", "z"),
+            skip_nans=False,
+            reshape_organized_cloud=True,
+        )
+        return np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
+
     def read_cloud_points(
         self,
         cloud_msg: PointCloud2,
         uvs: List[Tuple[int, int]],
     ) -> List[Tuple[float, float, float]]:
-        fields = {f.name: f.offset for f in cloud_msg.fields}
-        if not all(k in fields for k in ("x", "y", "z")):
+        field_names = {f.name for f in cloud_msg.fields}
+        if not {"x", "y", "z"} <= field_names:
             self.get_logger().warn("PointCloud2 missing x/y/z fields")
+            return []
+
+        if not uvs:
             return []
 
         min_range = float(self.get_parameter("min_range_m").value)
         max_range = float(self.get_parameter("max_range_m").value)
         max_abs = float(self.get_parameter("max_abs_xyz_m").value)
 
-        points = []
+        xyz = self.cloud_to_xyz_matrix(cloud_msg)
 
-        for u, v in uvs:
-            offset = v * cloud_msg.row_step + u * cloud_msg.point_step
+        # uvs are (u=column, v=row), so index the matrix as [v, u].
+        uv = np.asarray(uvs, dtype=np.int64)
+        pts = xyz[uv[:, 1], uv[:, 0]]
 
-            try:
-                x = struct.unpack_from("f", cloud_msg.data, offset + fields["x"])[0]
-                y = struct.unpack_from("f", cloud_msg.data, offset + fields["y"])[0]
-                z = struct.unpack_from("f", cloud_msg.data, offset + fields["z"])[0]
-            except Exception:
-                continue
+        r = np.linalg.norm(pts, axis=1)
+        keep = (
+            np.all(np.isfinite(pts), axis=1)
+            & (r >= min_range)
+            & (r <= max_range)
+            & np.all(np.abs(pts) <= max_abs, axis=1)
+        )
 
-            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
-                continue
-
-            r = math.sqrt(x * x + y * y + z * z)
-            if r < min_range or r > max_range:
-                continue
-
-            if abs(x) > max_abs or abs(y) > max_abs or abs(z) > max_abs:
-                continue
-
-            points.append((x, y, z))
-
-        return points
+        return [tuple(p) for p in pts[keep].tolist()]
 
     def publish_points(self, header, points: List[Tuple[float, float, float]]):
         msg = point_cloud2.create_cloud_xyz32(header, points)
