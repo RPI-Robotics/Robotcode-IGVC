@@ -110,7 +110,7 @@ class LanePointsNode(Node):
 
         image_h, image_w = bgr.shape[:2]
 
-        line_uvs_image, debug_img = self.detect_lane_line_pixels(bgr)
+        line_uvs_image, debug_img = self.detect_lane_line_pixels(bgr, cloud_msg)
         line_uvs_cloud = self.scale_uvs_to_cloud(
             line_uvs_image,
             image_w,
@@ -136,7 +136,9 @@ class LanePointsNode(Node):
         msg.header.frame_id = frame_id
         pub.publish(msg)
 
-    def detect_lane_line_pixels(self, bgr: np.ndarray) -> Tuple[List[Tuple[int, int]], np.ndarray]:
+    def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
+        xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
+        
         h, w = bgr.shape[:2]
 
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
