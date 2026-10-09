@@ -139,7 +139,7 @@ class LanePointsNode(Node):
     def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
         xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
-        dzdr = xyz_diff_mat[:,:,2] / np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2)
+        dzdr_mat = xyz_diff_mat[:,:,2] / np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2)
         
         h, w = bgr.shape[:2]
 
@@ -165,13 +165,11 @@ class LanePointsNode(Node):
         z_mask = xyz_mat[:,:,2] < 1 # TODO: Replace with variable
         z_mask[roi_bottom:roi_top, :] = 0
         
-        dz_mask = dzdr_mat[:,:,2] < 1 # TODO: Replace with variable
+        dz_mask = dzdr_mat < 1 # TODO: Replace with variable
         z_mask[roi_bottom:roi_top, :] = 0
         
         line_mask = mask*z_mask*dz_mask
         
-        
-
         return uvs, debug
 
     def scale_uvs_to_cloud(
