@@ -148,7 +148,7 @@ class LanePointsNode(Node):
     def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
         xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
-        dzdr_mat = xyz_diff_mat[:,:,2] / np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2)
+        dzdr_mat = xyz_diff_mat[:,:,2] / np.clip(np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2), 1e-6, None)
         
         h, w = bgr.shape[:2]
 
@@ -180,11 +180,16 @@ class LanePointsNode(Node):
         dz_mask = np.zeros((ch, cw), dtype=bool)
         dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
 
-        line_mask = color_mask & z_mask & dz_mask
-        line_mask[:int(ch * roi_top/h)] = False
-        line_mask[int(ch * 0.90):] = False
+        # Upscale cloud-resolution masks to image resolution (same shape as mask)
+        z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
+        dz_mask = cv2.resize(dz_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
+        xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
 
-        line_points = xyz_mat[line_mask]
+        line_mask = mask&z_mask & dz_mask
+        line_mask[:roi_top] = False
+        line_mask[roi_bottom:] = False
+
+        line_points = xyz_img[line_mask]
         return line_points, line_mask
 
     def cloud_to_xyz_matrix(self, cloud_msg: PointCloud2) -> np.ndarray:
