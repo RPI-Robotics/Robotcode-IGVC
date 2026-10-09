@@ -144,7 +144,7 @@ class LanePointsNode(Node):
         h, w = bgr.shape[:2]
 
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
-        roi_bottom = int(h * 0.90)
+        roi_bottom = int(h * 0.90) # TODO: Replace with variable
         min_lightness = int(self.get_parameter("min_lightness").value)
         max_saturation = int(self.get_parameter("max_saturation").value)
 
@@ -154,8 +154,7 @@ class LanePointsNode(Node):
 
         mask = np.zeros((h, w), dtype=np.uint8)
         mask[(lightness >= min_lightness) & (saturation <= max_saturation)] = 255
-        mask[:roi_top, :] = 0
-        mask[roi_bottom:, :] = 0
+        mask[roi_bottom:roi_top, :] = 0
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -163,6 +162,14 @@ class LanePointsNode(Node):
 
         self.publish_debug_image(self.mask_pub, mask)
 
+        z_mask = xyz_mat[:,:,2] < 1 # TODO: Replace with variable
+        z_mask[roi_bottom:roi_top, :] = 0
+        
+        dz_mask = dzdr_mat[:,:,2] < 1 # TODO: Replace with variable
+        z_mask[roi_bottom:roi_top, :] = 0
+        
+        line_mask = mask*z_mask*dz_mask
+        
         
 
         return uvs, debug
