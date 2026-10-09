@@ -138,6 +138,8 @@ class LanePointsNode(Node):
 
     def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
         xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
+        xyz_diff_mat = np.diff(xyz_mat, axis=0)
+        dzdr = xyz_diff_mat[:,:,2] / np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2)
         
         h, w = bgr.shape[:2]
 
@@ -161,76 +163,7 @@ class LanePointsNode(Node):
 
         self.publish_debug_image(self.mask_pub, mask)
 
-        blur_k = int(self.get_parameter("blur_kernel_size").value) if self.has_parameter("blur_kernel_size") else 11
-        blur_sigma = float(self.get_parameter("blur_sigma").value) if self.has_parameter("blur_sigma") else 0.0
-
-        if blur_k % 2 == 0:
-            blur_k += 1
-        blur_k = max(3, blur_k)
-
-        blurred = cv2.GaussianBlur(mask, (blur_k, blur_k), blur_sigma)
-
-        self.publish_debug_image(self.blur_pub, blurred)
-
-        edges = cv2.Canny(
-            blurred,
-            int(self.get_parameter("canny_low").value),
-            int(self.get_parameter("canny_high").value),
-        )
-
-        self.publish_debug_image(self.edges_pub, edges)
-
-        lines = cv2.HoughLinesP(
-            edges,
-            rho=1,
-            theta=np.pi / 180.0,
-            threshold=int(self.get_parameter("hough_threshold").value),
-            minLineLength=int(self.get_parameter("hough_min_line_length").value),
-            maxLineGap=int(self.get_parameter("hough_max_line_gap").value),
-        )
-
-        debug = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-
-        sample_step = max(1, int(self.get_parameter("line_sample_step_px").value))
-        max_points = int(self.get_parameter("max_points").value)
-
-        uvs: List[Tuple[int, int]] = []
-
-        if lines is not None:
-            for line in lines:
-                x1, y1, x2, y2 = line[0]
-
-                dx = x2 - x1
-                dy = y2 - y1
-                length = math.hypot(dx, dy)
-
-                angle = abs(math.degrees(math.atan2(dy, dx)))
-
-                # Keep lane-like diagonals, reject horizontal noise and nearly vertical artifacts.
-                if angle < 20.0 or angle > 80.0:
-                    continue
-
-                # Reject very bottom/near-camera noise.
-                line_mid_v = 0.5 * (y1 + y2)
-                if line_mid_v > h * 0.82:
-                    continue
-
-                cv2.line(debug, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-                samples = max(2, int(length / sample_step))
-                for i in range(samples):
-                    t = i / float(samples - 1)
-                    u = int(round((1.0 - t) * x1 + t * x2))
-                    v = int(round((1.0 - t) * y1 + t * y2))
-
-                    if 0 <= u < w and 0 <= v < h:
-                        uvs.append((u, v))
-
-        if len(uvs) > max_points:
-            idx = np.linspace(0, len(uvs) - 1, max_points).astype(np.int32)
-            uvs = [uvs[i] for i in idx]
-
-        self.publish_debug_image(self.hough_pub, debug)
+        
 
         return uvs, debug
 
