@@ -163,7 +163,8 @@ class LanePointsNode(Node):
 
         mask = np.zeros((h, w), dtype=np.uint8)
         mask[(lightness >= min_lightness) & (saturation <= max_saturation)] = 255
-        mask[roi_top:roi_bottom, :] = 0
+        mask[:roi_top, :] = 0
+        mask[roi_bottom:, :] = 0
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -180,7 +181,7 @@ class LanePointsNode(Node):
         dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
 
         line_mask = color_mask & z_mask & dz_mask
-        line_mask[:int(ch * roi_frac_top)] = False
+        line_mask[:int(ch * roi_top/h)] = False
         line_mask[int(ch * 0.90):] = False
 
         line_points = xyz_mat[line_mask]
