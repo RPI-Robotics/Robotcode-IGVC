@@ -110,24 +110,33 @@ class LanePointsNode(Node):
 
         image_h, image_w = bgr.shape[:2]
 
-        line_uvs_image, debug_img = self.detect_lane_line_pixels(bgr, cloud_msg)
-        line_uvs_cloud = self.scale_uvs_to_cloud(
-            line_uvs_image,
-            image_w,
-            image_h,
-            cloud_msg.width,
-            cloud_msg.height,
+        line_points, line_mask = self.detect_lane_line_pixels(bgr, cloud_msg)
+
+        min_range = float(self.get_parameter("min_range_m").value)
+        max_range = float(self.get_parameter("max_range_m").value)
+        max_abs = float(self.get_parameter("max_abs_xyz_m").value)
+        max_points = int(self.get_parameter("max_points").value)
+
+        r = np.linalg.norm(line_points, axis=1)
+        keep = (
+            np.all(np.isfinite(line_points), axis=1)
+            & (r >= min_range)
+            & (r <= max_range)
+            & np.all(np.abs(line_points) <= max_abs, axis=1)
         )
+        points = line_points[keep]
 
-        points = self.read_cloud_points(cloud_msg, line_uvs_cloud)
-        self.publish_points(cloud_msg.header, points)
+        if len(points) > max_points:
+            points = points[np.random.choice(len(points), max_points, replace=False)]
 
-        debug_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
-        debug_msg.header = image_msg.header
+        self.publish_points(cloud_msg.header, points.tolist())
+
+        debug_msg = self.bridge.cv2_to_imgmsg(line_mask.astype(np.uint8) * 255, encoding="mono8")
+        debug_msg.header = cloud_msg.header
         self.debug_pub.publish(debug_msg)
 
         self.get_logger().info(
-            f"lane debug: lines_uv={len(line_uvs_image)}, points={len(points)}"
+            f"lane debug: mask_px={len(line_points)}, points={len(points)}"
         )
         
     def publish_debug_image(self, pub, img: np.ndarray, frame_id: str = "camera"):
@@ -154,7 +163,7 @@ class LanePointsNode(Node):
 
         mask = np.zeros((h, w), dtype=np.uint8)
         mask[(lightness >= min_lightness) & (saturation <= max_saturation)] = 255
-        mask[roi_bottom:roi_top, :] = 0
+        mask[roi_top:roi_bottom, :] = 0
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -162,37 +171,20 @@ class LanePointsNode(Node):
 
         self.publish_debug_image(self.mask_pub, mask)
 
-        z_mask = xyz_mat[:,:,2] < 1 # TODO: Replace with variable
-        z_mask[roi_bottom:roi_top, :] = 0
-        
-        dz_mask = dzdr_mat < 1 # TODO: Replace with variable
-        z_mask[roi_bottom:roi_top, :] = 0
-        
-        line_mask = mask*z_mask*dz_mask
-        
-        return uvs, debug
+        ch, cw = xyz_mat.shape[:2]
+        color_mask = cv2.resize(mask, (cw, ch), interpolation=cv2.INTER_NEAREST) > 0
 
-    def scale_uvs_to_cloud(
-        self,
-        image_uvs: List[Tuple[int, int]],
-        image_w: int,
-        image_h: int,
-        cloud_w: int,
-        cloud_h: int,
-    ) -> List[Tuple[int, int]]:
-        if image_w == cloud_w and image_h == cloud_h:
-            return image_uvs
+        z_mask = xyz_mat[:, :, 2] < 1  # TODO: Replace with variable
 
-        sx = cloud_w / float(image_w)
-        sy = cloud_h / float(image_h)
+        dz_mask = np.zeros((ch, cw), dtype=bool)
+        dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
 
-        cloud_uvs = []
-        for u, v in image_uvs:
-            cu = int(np.clip(u * sx, 0, cloud_w - 1))
-            cv = int(np.clip(v * sy, 0, cloud_h - 1))
-            cloud_uvs.append((cu, cv))
+        line_mask = color_mask & z_mask & dz_mask
+        line_mask[:int(ch * roi_frac_top)] = False
+        line_mask[int(ch * 0.90):] = False
 
-        return cloud_uvs
+        line_points = xyz_mat[line_mask]
+        return line_points, line_mask
 
     def cloud_to_xyz_matrix(self, cloud_msg: PointCloud2) -> np.ndarray:
         """Return an (H, W, 3) array where [i][j] is the XYZ point at pixel row i, column j."""
@@ -203,39 +195,6 @@ class LanePointsNode(Node):
             reshape_organized_cloud=True,
         )
         return np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
-
-    def read_cloud_points(
-        self,
-        cloud_msg: PointCloud2,
-        uvs: List[Tuple[int, int]],
-    ) -> List[Tuple[float, float, float]]:
-        field_names = {f.name for f in cloud_msg.fields}
-        if not {"x", "y", "z"} <= field_names:
-            self.get_logger().warn("PointCloud2 missing x/y/z fields")
-            return []
-
-        if not uvs:
-            return []
-
-        min_range = float(self.get_parameter("min_range_m").value)
-        max_range = float(self.get_parameter("max_range_m").value)
-        max_abs = float(self.get_parameter("max_abs_xyz_m").value)
-
-        xyz = self.cloud_to_xyz_matrix(cloud_msg)
-
-        # uvs are (u=column, v=row), so index the matrix as [v, u].
-        uv = np.asarray(uvs, dtype=np.int64)
-        pts = xyz[uv[:, 1], uv[:, 0]]
-
-        r = np.linalg.norm(pts, axis=1)
-        keep = (
-            np.all(np.isfinite(pts), axis=1)
-            & (r >= min_range)
-            & (r <= max_range)
-            & np.all(np.abs(pts) <= max_abs, axis=1)
-        )
-
-        return [tuple(p) for p in pts[keep].tolist()]
 
     def publish_points(self, header, points: List[Tuple[float, float, float]]):
         msg = point_cloud2.create_cloud_xyz32(header, points)
