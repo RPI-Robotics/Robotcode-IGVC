@@ -106,7 +106,6 @@ CATKIN_IGNORE
 
 *.db*
 c_cpp_properties.json
-settings.json
 
 # ROS stuff
 install
