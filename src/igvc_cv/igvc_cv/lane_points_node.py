@@ -169,10 +169,9 @@ class LanePointsNode(Node):
         dzdr_cloud = np.full(xyz_mat.shape[:2], np.nan, dtype=np.float32)
         dzdr_cloud[1:] = np.abs(dzdr_mat)
 
-        # Rolling 8x8 max of |dzdr| to suppress noise; NaNs are ignored in the max and kept NaN afterwards
+        # Rolling 8x8 max of |dzdr| to suppress noise; NaNs are ignored in the max
         dzdr_nan = np.isnan(dzdr_cloud)
         dzdr_cloud = cv2.dilate(np.where(dzdr_nan, 0, dzdr_cloud).astype(np.float32), np.ones((8, 8), np.uint8))
-        # dzdr_cloud[dzdr_nan] = np.nan
 
         dzdr_img = cv2.resize(dzdr_cloud, (w, h), interpolation=cv2.INTER_NEAREST)
         self.publish_debug_image(self.dzdr_pub, dzdr_img)
@@ -208,7 +207,6 @@ class LanePointsNode(Node):
         z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
         dz_mask = cv2.resize(dz_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
         
-
         line_mask = (mask > 0) & z_mask & dz_mask
         line_mask[:roi_top] = False
         line_mask[roi_bottom:] = False
