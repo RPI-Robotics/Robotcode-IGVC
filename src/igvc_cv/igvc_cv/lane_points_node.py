@@ -63,7 +63,7 @@ class LanePointsNode(Node):
         self.mask_pub = self.create_publisher(Image, "/lanes/debug_mask", 10)
         self.blur_pub = self.create_publisher(Image, "/lanes/debug_blur", 10)
         self.edges_pub = self.create_publisher(Image, "/lanes/debug_edges", 10)
-        self.hough_pub = self.create_publisher(Image, "/lanes/debug_hough", 10)
+        self.lines_pub = self.create_publisher(Image, "/lanes/debug_lines", 10)
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -175,19 +175,21 @@ class LanePointsNode(Node):
         ch, cw = xyz_mat.shape[:2]
         color_mask = cv2.resize(mask, (cw, ch), interpolation=cv2.INTER_NEAREST) > 0
 
-        z_mask = xyz_mat[:, :, 2] < 1  # TODO: Replace with variable
+        z_mask = xyz_mat[:, :, 2] < 0  # TODO: Replace with variable
 
         dz_mask = np.zeros((ch, cw), dtype=bool)
-        dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
+        dz_mask[1:] = np.abs(dzdr_mat) < 0  # TODO: Replace with variable
 
         # Upscale cloud-resolution masks to image resolution (same shape as mask)
         z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
         dz_mask = cv2.resize(dz_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
         xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
 
-        line_mask = mask&z_mask & dz_mask
+        line_mask = (mask > 0) & z_mask & dz_mask
         line_mask[:roi_top] = False
         line_mask[roi_bottom:] = False
+        
+        self.publish_debug_image(self.lines_pub, line_mask.astype(np.uint8) * 255)
 
         line_points = xyz_img[line_mask]
         return line_points, line_mask
@@ -200,7 +202,10 @@ class LanePointsNode(Node):
             skip_nans=False,
             reshape_organized_cloud=True,
         )
-        return np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
+        xyz = np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
+        # ZED marks invalid depth as +/-inf; convert to NaN so diff/divide propagate quietly
+        xyz[~np.isfinite(xyz)] = np.nan
+        return xyz
 
     def publish_points(self, header, points: List[Tuple[float, float, float]]):
         msg = point_cloud2.create_cloud_xyz32(header, points)
