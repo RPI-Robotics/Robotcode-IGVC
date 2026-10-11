@@ -9,61 +9,38 @@ from launch.actions import DeclareLaunchArgument, RegisterEventHandler
 
 from launch.conditions import UnlessCondition
 
+from igvc_launch_utils.launch_helper import *
+
 def generate_launch_description():
-    # Declare args
-    declared_arguments = []
+    robot_controllers = get_config("igvc_hardware", "bot_controllers.yaml")
     
-    declared_arguments.append(
+    use_sim = LaunchConfiguration("use_sim")
+    
+    # Declare args
+    launch_args = [
         DeclareLaunchArgument(
             name="use_sim",
             default_value="false",
             description="Wether or not the robot is launching in simulation"
         )
-    )
+    ]
     
-    use_sim = LaunchConfiguration("use_sim")
     
     # Get nodes
-    robot_controllers = PathJoinSubstitution(
-        [
-            FindPackageShare("igvc_hardware"),
-            "config",
-            "bot_controllers.yaml",
-        ]
+    control_node = get_node("controller_manager", "ros2_control_node", 
+        condition = UnlessCondition(use_sim),
+        parameters=[robot_controllers], # TODO in the ODrive botwheel explorer example, the description contents are also passed in here.
+        remappings=[("~/robot_description", "/robot_description"),], 
     )
-
-    control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[
-            # TODO in the ODrive botwheel explorer example, the description contents are also passed in here.
-            robot_controllers
-        ],
-        remappings=[
-            ("~/robot_description", "/robot_description"),
-        ],
-        output="screen",
-        condition = UnlessCondition(use_sim)
+    robot_controller_spawner = get_node("controller_manager", "spawner",
+        arguments=["bot_drive_controller", "--controller-manager", "/controller_manager", "--switch-timeout", "20.0"],
+        remappings=[('~/cmd_vel','/cmd_vel'), ("~/robot_description", "/robot_description")]
     )
-
-    robot_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["bot_drive_controller",
-                   "--controller-manager", "/controller_manager", "--switch-timeout", "20.0"],
-        remappings=[
-            ('~/cmd_vel','/cmd_vel'),
-            ("~/robot_description", "/robot_description")
-        ]
-    )
-    
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
+    joint_state_broadcaster_spawner = get_node("controller_manager", "spawner",
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager", "--switch-timeout", "20.0"],
     )
 
-    
+
     delay_robot_controller_spawner_after_joint_state_broadcaster_spawner = RegisterEventHandler(
         event_handler=OnProcessExit(
             target_action=joint_state_broadcaster_spawner,
@@ -71,10 +48,10 @@ def generate_launch_description():
         )
     )
 
-    nodes = [
+
+    return LaunchDescription([
+        *launch_args,
         control_node,
         joint_state_broadcaster_spawner,
         robot_controller_spawner
-    ]
-
-    return LaunchDescription(declared_arguments + nodes)
+    ])
