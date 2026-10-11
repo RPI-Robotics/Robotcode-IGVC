@@ -1,12 +1,6 @@
 from launch import LaunchDescription
-from launch.substitutions import  PathJoinSubstitution
-from launch_ros.substitutions import FindPackageShare
-from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 from igvc_launch_utils.launch_helper import *
-IMU_NAME = "TODO" # TODO
 
 def generate_launch_description(): 
     launch_zed_node = get_launch_file("zed_wrapper", 'zed_camera.launch.py',
