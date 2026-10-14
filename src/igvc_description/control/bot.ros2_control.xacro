@@ -8,7 +8,7 @@
       <xacro:unless value="${use_mock_hardware}">
         <hardware>
           <plugin>odrive_ros2_control_plugin/ODriveHardwareInterface</plugin>
-          <param name="can">can2</param>
+          <param name="can">can0</param>
         </hardware>
       </xacro:unless>
 
