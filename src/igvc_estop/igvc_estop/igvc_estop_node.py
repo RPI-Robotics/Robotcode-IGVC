@@ -70,7 +70,7 @@ class GpioEStop(Node):
             )
 
         else:
-            import Jetson.GPIO as GPIO
+            import RPi.GPIO as GPIO
             self.GPIO = GPIO
 
             GPIO.setmode(GPIO.BOARD if self.mode == "BOARD" else GPIO.BCM)
