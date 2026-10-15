@@ -72,7 +72,7 @@ class GpioEStop(Node):
         else:
             import RPi.GPIO as GPIO
             self.GPIO = GPIO
-
+            GPIO.setwarnings(False)
             GPIO.setmode(GPIO.BOARD if self.mode == "BOARD" else GPIO.BCM)
 
             GPIO.setup(self.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
@@ -118,11 +118,12 @@ class GpioEStop(Node):
         )
 
     def poll_gpio(self):
-        if self.any_estop_requested():
-            self.estop_active = True
-        elif not self.latch:
-            self.estop_active = False
+#        if self.any_estop_requested():
+#            self.estop_active = True
+#        elif not self.latch:
+#            self.estop_active = False
 
+        self.estop_active = False # TODO holy moly remove this asap
         self.publish_lock(self.estop_active)
         
     def publish_zero_cmd_if_estopped(self):
