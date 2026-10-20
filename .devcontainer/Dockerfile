@@ -23,18 +23,13 @@ RUN apt-get update && apt-get upgrade -y
 
 # Unconditional installs
 RUN apt-get install -y \
-    python3-pip \
-    ros-jazzy-rmw-cyclonedds-cpp 
+    python3-pip
 
 ## Simulation only
 RUN if $SIM_ENABLED ; then \
         apt-get update && apt-get install -y \
-            # RQT packages
-            ros-jazzy-rqt-tf-tree ros-jazzy-rqt-graph ros-jazzy-rqt-image-view \
-            # Teleop control keyboard
-            ros-jazzy-teleop-twist-keyboard \
             # External terminal
-            gnome-terminal dbus-x11 \
+            dbus-x11 \
             # Onshape-to-robot dependencies
             openscad ; fi
 
