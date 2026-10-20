@@ -31,7 +31,7 @@ ekf_node_odom:
                   false, false, false, # linear velocity
                   false,  false,  true, # angular velocity
                   false,  false,  false] # linear acceleration
-    imu0_differential: false  # If using a real robot you might want to set this to true, since usually absolute measurements from real imu's are not very accurate
+    imu0_differential: true  # If using a real robot you might want to set this to true, since usually absolute measurements from real imu's are not very accurate
     imu0_relative: false
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
