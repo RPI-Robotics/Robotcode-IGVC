@@ -13,7 +13,7 @@ slam_toolbox:
     odom_frame: odom
     map_frame: map
     map_name: /map
-    base_frame: base_footprint
+    base_frame: base_link
     scan_topic: /scan
     mode: mapping
 
