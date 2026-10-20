@@ -15,6 +15,7 @@
   <depend>robot_localization</depend>
   
   <exec_depend>igvc_launch_utils</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
