@@ -1,5 +1,6 @@
 from launch import LaunchDescription
 from launch.substitutions import  PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
@@ -10,6 +11,25 @@ IMU_NAME = "TODO" # TODO
 def generate_launch_description():
     # Declare args
     
+    #lowk unnecessary, but allows other ports in testing 
+    micro_ros_argument = DeclareLaunchArgument(
+        'micro_ros_port',
+        default_value='/dev/ttyUSB0', 
+        description='serial device for micro-ROS'
+    )
+    
+    #assuming baud rates match, which they should
+    launch_micro_ros_agent = Node(
+        package='micro_ros_agent',
+        executable='micro_ros_agent',
+        name='micro_ros_agent',
+        output='screen',
+        arguments=[
+            'serial',
+            '--dev', LaunchConfiguration('micro_ros_port')
+        ]
+    )
+        
     launch_navsat_node = Node(
         package='ublox_gps',
         executable='ublox_gps_node',
@@ -22,12 +42,13 @@ def generate_launch_description():
         }],
     )
     
-    launch_led_bridge_node = Node(
-        package='led_bridge',
-        executable='led_bridge',
-        name='led_bridge',
-        output='screen',
-    )
+    # no longer necessary
+    #launch_led_bridge_node = Node(
+    #    package='led_bridge',
+    #    executable='led_bridge',
+    #    name='led_bridge',
+    #    output='screen',
+    #)
 
     launch_zed_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -67,8 +88,9 @@ def generate_launch_description():
     )
 
     nodes = [
+        micro_ros_argument,
+        launch_micro_ros_agent,
         launch_navsat_node,
-        launch_led_bridge_node,
         launch_zed_node,
         launch_rplidar_node,
         launch_compass_bridge_node
