@@ -12,7 +12,7 @@ def generate_launch_description():
     launch_args = [
         DeclareLaunchArgument(
             'use_gps',
-            default_value='false',
+            default_value=False,
             description='Run with GPS'
         )
     ]
