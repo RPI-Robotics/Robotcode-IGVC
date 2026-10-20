@@ -50,7 +50,7 @@ def generate_launch_description():
     simulation = get_launch_file('igvc_gazebo', [sim_world, '.launch.py'], condition=IfCondition(use_sim))
     control = get_launch_file('igvc_hardware', 'control.launch.py')
     real_hardware = get_launch_file('igvc_hardware', 'hardware.launch.py', condition=UnlessCondition(use_mock_hardware))
-    slam = get_launch_file('igvc_slam', 'dual_ekf.launch.py', condition=IfCondition(use_slam))
+    slam = get_launch_file('igvc_slam', 'igvc_slam.launch.py', condition=IfCondition(use_slam))
     cv = get_launch_file('igvc_cv', 'igvc_cv.launch.py')
     nav = get_launch_file('igvc_nav', 'igvc_nav.launch.py', condition=IfCondition(use_nav))
 
