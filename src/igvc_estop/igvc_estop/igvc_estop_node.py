@@ -4,8 +4,6 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
-
-
 class GpioEStop(Node):
     def __init__(self):
         super().__init__("gpio_estop")
