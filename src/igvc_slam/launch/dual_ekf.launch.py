@@ -4,6 +4,14 @@ from igvc_launch_utils.launch_helper import *
 def generate_launch_description():
     param_file = get_config('igvc_slam', 'dual_ekf_params.yaml')
     
+    launch_args = [
+        DeclareLaunchArgument(
+            'use_gps',
+            default_value='false',
+            description='Run with GPS'
+        )
+    ]
+    
     ekf_node_odom = get_node('robot_localization', 'ekf_node', name='ekf_node_odom', parameters=[param_file], 
                              remappings=[('odometry/filtered', '/odometry/local')],
                              )
@@ -21,6 +29,7 @@ def generate_launch_description():
                                 )
 
     return LaunchDescription([
+        launch_args,
         ekf_node_odom,
         ekf_node_map,
         navsat_transform
