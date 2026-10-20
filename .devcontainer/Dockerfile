@@ -23,7 +23,7 @@ RUN apt-get update && apt-get upgrade -y
 
 # Unconditional installs
 RUN apt-get install -y \
-    python3-pip \
+    python3-pip
 
 ## Simulation only
 RUN if $SIM_ENABLED ; then \
