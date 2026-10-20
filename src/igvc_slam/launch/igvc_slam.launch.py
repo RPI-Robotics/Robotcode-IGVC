@@ -10,25 +10,11 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
-    
-    rplidar = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            [FindPackageShare("rplidar_ros"),
-             '/launch',
-             '/rplidar_s2e_launch.py']
-        ),
-        launch_arguments={
-            'udp_ip' : '192.168.131.20',
-            'frame_id' : 'laser_frame'
-        }.items()
-    )
-    
-    sentry_mapper_package = get_package_share_directory('sentry_mapper')
+    igvc_slam_package = get_package_share_directory('igvc_slam')
     slam_toolbox_package  = get_package_share_directory('slam_toolbox')
     
     slam_toolbox_launch_path = os.path.join(slam_toolbox_package , 'launch', 'online_async_launch.py')
-    mapper_config_path = os.path.join(sentry_mapper_package, 'config', 'mapper_params_online_async.yaml')
-    filter_config_path = os.path.join(sentry_mapper_package, 'config', 'bounds_filter.yaml')
+    mapper_config_path = os.path.join(igvc_slam_package, 'config', 'mapper_params_online_async.yaml')
 
     mapper = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(slam_toolbox_launch_path),
@@ -38,33 +24,8 @@ def generate_launch_description():
         }.items()
     )
 
-    laser_filter_node = Node(
-        package='laser_filters',
-        executable='scan_to_scan_filter_chain',
-        name='laser_filter',
-        parameters=[filter_config_path],
-        remappings=[
-            ('scan', '/scan'),
-            ('scan_filtered', '/scan_filtered')
-        ],
-        output='screen'
-    )
-    
-    robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        parameters=[{
-        'robot_description': Command([
-                'xacro ', os.path.join(sentry_mapper_package, 'urdf/lidar.urdf.xacro'),
-            ])
-        }],
-    )
-
     nodes = [
-        rplidar,
         mapper,
-        laser_filter_node,
-        robot_state_publisher
     ]
 
     return LaunchDescription(nodes)
