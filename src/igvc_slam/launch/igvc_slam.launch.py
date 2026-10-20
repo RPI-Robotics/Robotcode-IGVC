@@ -12,12 +12,12 @@ def generate_launch_description():
     launch_args = [
         DeclareLaunchArgument(
             'use_gps',
-            default_value=False,
+            default_value='false',
             description='Run with GPS'
         )
     ]
     
-    if use_gps:
+    if use_gps != "false":
         ekf_node_odom = get_node('robot_localization', 'ekf_node', name='ekf_node_odom', parameters=[param_file], 
                             remappings=[('odometry/filtered', '/odometry/local')],
                             )
