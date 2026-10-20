@@ -42,7 +42,7 @@ def generate_launch_description():
         ])
         
     else:
-        slam_toolbox_launch_path  get_launch_file('igvc_slam' , 'online_async_launch.py', 
+        slam_toolbox_launch_path = get_launch_file('slam_toolbox' , 'online_async_launch.py', 
                                                 launch_arguments={
                                                     'slam_params_file' : mapper_config_path,
                                                     'use_sim_time' : 'false'
