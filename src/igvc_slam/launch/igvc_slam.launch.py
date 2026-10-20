@@ -17,38 +17,14 @@ def generate_launch_description():
         )
     ]
     
-    if use_gps != "false":
-        ekf_node_odom = get_node('robot_localization', 'ekf_node', name='ekf_node_odom', parameters=[param_file], 
-                            remappings=[('odometry/filtered', '/odometry/local')],
-                            )
-        ekf_node_map = get_node('robot_localization', 'ekf_node', name='ekf_node_map', parameters=[param_file], 
-                                remappings=[('odometry/filtered', '/odometry/global')],
-                                )
-        navsat_transform = get_node('robot_localization', 'navsat_transform_node', name='navsat_transform', parameters=[param_file], 
-                                    remappings=[
-                                        ('imu', '/zed/zed_node/imu/data'), 
-                                        ('gps/fix', '/fix'), 
-                                        ('gps/filtered', '/gps/filtered'), 
-                                        ('odometry/gps', '/odometry/gps'), 
-                                        ("odometry/filtered", "/odometry/local"),
-                                        ],
-                                    )
-        
-        return LaunchDescription([
-            *launch_args,
-            ekf_node_odom,
-            ekf_node_map,
-            navsat_transform
-        ])
-        
-    else:
-        slam_toolbox_launch_path = get_launch_file('slam_toolbox' , 'online_async_launch.py', 
-                                                launch_arguments={
-                                                    'slam_params_file' : mapper_config_path,
-                                                    'use_sim_time' : 'false'
-                                                    }.items())
+    
+    slam_toolbox_launch_path = get_launch_file('slam_toolbox' , 'online_async_launch.py', 
+                                            launch_arguments={
+                                                'slam_params_file' : mapper_config_path,
+                                                'use_sim_time' : 'false'
+                                                }.items())
 
-        return LaunchDescription([
-            *launch_args,
-            slam_toolbox_launch_path
-        ])
+    return LaunchDescription([
+        *launch_args,
+        slam_toolbox_launch_path
+    ])
