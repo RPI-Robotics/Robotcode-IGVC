@@ -1,31 +1,17 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
-from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import Command
-from launch_ros.actions import Node
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
-    igvc_slam_package = get_package_share_directory('igvc_slam')
-    slam_toolbox_package  = get_package_share_directory('slam_toolbox')
+    mapper_config_path = get_config('igvc_slam', 'mapper_params_online_async.yaml')
     
-    slam_toolbox_launch_path = os.path.join(slam_toolbox_package , 'launch', 'online_async_launch.py')
-    mapper_config_path = os.path.join(igvc_slam_package, 'config', 'mapper_params_online_async.yaml')
+    slam_toolbox_launch_path  get_launch_file('igvc_slam' , 'online_async_launch.py', 
+                                              launch_arguments={
+                                                  'slam_params_file' : mapper_config_path,
+                                                  'use_sim_time' : 'false'
+                                                  }.items())
 
-    mapper = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slam_toolbox_launch_path),
-        launch_arguments={
-            'slam_params_file' : mapper_config_path,
-	    'use_sim_time' : 'false'
-        }.items()
-    )
-
-    nodes = [
-        mapper,
-    ]
-
-    return LaunchDescription(nodes)
+    return LaunchDescription([
+        slam_toolbox_launch_path
+    ])
