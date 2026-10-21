@@ -22,9 +22,9 @@ bot_drive_controller:
     wheels_per_side: 1 # TODO look into if we need to make it 2 because we have non-powered steers in the front
 
     # Correction factors when radii differ from wheel_radius
-    wheel_separation_multiplier: 1.0
+    wheel_separation_multiplier: -1.0
     left_wheel_radius_multiplier: 1.0
-    right_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: -1.0
 
 
     tf_frame_prefix_enable: true # Enables adding a prefix to each tf frame id
@@ -74,4 +74,3 @@ bot_drive_controller:
     # TODO
     angular.z.max_jerk: .NAN
     angular.z.min_jerk: .NAN
-    right_wheel_radius_multiplier: -1.0
