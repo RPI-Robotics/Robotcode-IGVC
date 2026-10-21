@@ -1,0 +1,23 @@
+barrel_points_node:
+  ros__parameters:
+    image_topic: /zed/zed_node/rgb/color/rect/image
+    cloud_topic: /zed/zed_node/point_cloud/cloud_registered
+    points_topic: /obstacles/barrel_points
+    debug_topic: /obstacles/debug_image
+    mask_topic: /obstacles/debug_mask
+
+    roi_top_fraction: 0.20
+    hue_min: 5
+    hue_max: 22
+    min_saturation: 120
+    min_value: 80
+
+    open_kernel_size: 5
+    close_kernel_size: 15
+    min_blob_area_px: 300
+
+    sample_step_px: 4
+    min_range_m: 0.3
+    max_range_m: 8.0
+    max_abs_xyz_m: 20.0
+    max_points: 3000

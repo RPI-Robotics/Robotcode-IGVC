@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import math
-import struct
 from typing import List, Tuple
 
 import cv2
@@ -13,6 +12,8 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs_py import point_cloud2
+
+from igvc_cv.cloud_utils import read_cloud_points, scale_uvs_to_cloud
 
 
 class LanePointsNode(Node):
@@ -28,7 +29,12 @@ class LanePointsNode(Node):
         self.declare_parameter("roi_top_fraction", 0.40)
         self.declare_parameter("min_lightness", 130)
         self.declare_parameter("max_saturation", 170)
-        
+
+        # Mask noise reduction
+        self.declare_parameter("morph_kernel_size", 5)
+        self.declare_parameter("min_blob_area_px", 100)
+        self.declare_parameter("min_blob_elongation", 2.0)
+
         # Blur
         self.declare_parameter("blur_kernel_size", 11)
         self.declare_parameter("blur_sigma", 0.0)
@@ -40,7 +46,8 @@ class LanePointsNode(Node):
         self.declare_parameter("hough_min_line_length", 35)
         self.declare_parameter("hough_max_line_gap", 30)
         self.declare_parameter("line_sample_step_px", 5)
-        
+        self.declare_parameter("min_line_angle_deg", 20.0)
+        self.declare_parameter("max_line_angle_deg", 80.0)
 
         # 3D filtering
         self.declare_parameter("min_range_m", 0.3)
@@ -112,7 +119,7 @@ class LanePointsNode(Node):
         image_h, image_w = bgr.shape[:2]
 
         line_uvs_image, debug_img = self.detect_lane_line_pixels(bgr)
-        line_uvs_cloud = self.scale_uvs_to_cloud(
+        line_uvs_cloud = scale_uvs_to_cloud(
             line_uvs_image,
             image_w,
             image_h,
@@ -120,7 +127,14 @@ class LanePointsNode(Node):
             cloud_msg.height,
         )
 
-        points = self.read_cloud_points(cloud_msg, line_uvs_cloud)
+        points = read_cloud_points(
+            cloud_msg,
+            line_uvs_cloud,
+            float(self.get_parameter("min_range_m").value),
+            float(self.get_parameter("max_range_m").value),
+            float(self.get_parameter("max_abs_xyz_m").value),
+            self.get_logger(),
+        )
         self.publish_points(cloud_msg.header, points)
 
         debug_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
@@ -154,9 +168,12 @@ class LanePointsNode(Node):
         mask[:roi_top, :] = 0
         mask[roi_bottom:, :] = 0
 
-        kernel = np.ones((3, 3), np.uint8)
+        morph_k = max(1, int(self.get_parameter("morph_kernel_size").value))
+        kernel = np.ones((morph_k, morph_k), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+        mask = self.filter_mask_blobs(mask)
 
         self.publish_debug_image(self.mask_pub, mask)
 
@@ -193,6 +210,9 @@ class LanePointsNode(Node):
         sample_step = max(1, int(self.get_parameter("line_sample_step_px").value))
         max_points = int(self.get_parameter("max_points").value)
 
+        min_angle = float(self.get_parameter("min_line_angle_deg").value)
+        max_angle = float(self.get_parameter("max_line_angle_deg").value)
+
         uvs: List[Tuple[int, int]] = []
 
         if lines is not None:
@@ -206,7 +226,7 @@ class LanePointsNode(Node):
                 angle = abs(math.degrees(math.atan2(dy, dx)))
 
                 # Keep lane-like diagonals, reject horizontal noise and nearly vertical artifacts.
-                if angle < 20.0 or angle > 80.0:
+                if angle < min_angle or angle > max_angle:
                     continue
 
                 # Reject very bottom/near-camera noise.
@@ -233,67 +253,27 @@ class LanePointsNode(Node):
 
         return uvs, debug
 
-    def scale_uvs_to_cloud(
-        self,
-        image_uvs: List[Tuple[int, int]],
-        image_w: int,
-        image_h: int,
-        cloud_w: int,
-        cloud_h: int,
-    ) -> List[Tuple[int, int]]:
-        if image_w == cloud_w and image_h == cloud_h:
-            return image_uvs
+    def filter_mask_blobs(self, mask: np.ndarray) -> np.ndarray:
+        """Drop small speckles and round blobs (glare, potholes) that are not line-shaped."""
+        min_area = float(self.get_parameter("min_blob_area_px").value)
+        min_elongation = float(self.get_parameter("min_blob_elongation").value)
 
-        sx = cloud_w / float(image_w)
-        sy = cloud_h / float(image_h)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        keep = np.zeros_like(mask)
 
-        cloud_uvs = []
-        for u, v in image_uvs:
-            cu = int(np.clip(u * sx, 0, cloud_w - 1))
-            cv = int(np.clip(v * sy, 0, cloud_h - 1))
-            cloud_uvs.append((cu, cv))
-
-        return cloud_uvs
-
-    def read_cloud_points(
-        self,
-        cloud_msg: PointCloud2,
-        uvs: List[Tuple[int, int]],
-    ) -> List[Tuple[float, float, float]]:
-        fields = {f.name: f.offset for f in cloud_msg.fields}
-        if not all(k in fields for k in ("x", "y", "z")):
-            self.get_logger().warn("PointCloud2 missing x/y/z fields")
-            return []
-
-        min_range = float(self.get_parameter("min_range_m").value)
-        max_range = float(self.get_parameter("max_range_m").value)
-        max_abs = float(self.get_parameter("max_abs_xyz_m").value)
-
-        points = []
-
-        for u, v in uvs:
-            offset = v * cloud_msg.row_step + u * cloud_msg.point_step
-
-            try:
-                x = struct.unpack_from("f", cloud_msg.data, offset + fields["x"])[0]
-                y = struct.unpack_from("f", cloud_msg.data, offset + fields["y"])[0]
-                z = struct.unpack_from("f", cloud_msg.data, offset + fields["z"])[0]
-            except Exception:
+        for contour in contours:
+            if cv2.contourArea(contour) < min_area:
                 continue
 
-            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
+            _, (rect_w, rect_h), _ = cv2.minAreaRect(contour)
+            short_side = min(rect_w, rect_h)
+            if short_side > 0 and max(rect_w, rect_h) / short_side < min_elongation:
                 continue
 
-            r = math.sqrt(x * x + y * y + z * z)
-            if r < min_range or r > max_range:
-                continue
+            cv2.drawContours(keep, [contour], -1, 255, thickness=cv2.FILLED)
 
-            if abs(x) > max_abs or abs(y) > max_abs or abs(z) > max_abs:
-                continue
-
-            points.append((x, y, z))
-
-        return points
+        # AND with the original so holes inside kept blobs stay empty.
+        return cv2.bitwise_and(mask, keep)
 
     def publish_points(self, header, points: List[Tuple[float, float, float]]):
         msg = point_cloud2.create_cloud_xyz32(header, points)

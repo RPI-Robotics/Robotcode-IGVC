@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             "lane_points_node = igvc_cv.lane_points_node:main",
+            "barrel_points_node = igvc_cv.barrel_points_node:main",
         ],
     },
 )
