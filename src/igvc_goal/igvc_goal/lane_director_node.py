@@ -103,8 +103,26 @@ class LaneDirectorNode(Node):
     def lane_points_callback(self, msg: PointCloud2):
         self.latest_cloud = msg
         
+    #Periodically called to calculate and send goal
+    def timer_callback(self):
+        #ensure node is ready to process data
+        if not self.timer_callback_is_ready():
+            return
+
+        #calculate goal
+        goal_map = self.calculate_goal()
+        if goal_map is None:
+            return
+
+        #only send new goal if it differs substantially from previous goal
+        if not self.should_send_goal(goal_map):
+            return
+
+        #send the goal to Nav2, asking it to move the robot to the calculated pose
+        self.send_nav_goal(goal_map)
+        
     #Ensures necessary information is available to run timer_callback
-    def timer_callback_checks(self) -> bool:
+    def timer_callback_is_ready(self) -> bool:
         #ensure this node is enabled
         if not self.enabled:
             return False
@@ -121,19 +139,15 @@ class LaneDirectorNode(Node):
         
         return True
 
-
-    def timer_callback(self):
-        #ensure node is enabled and necessary info is available
-        if not self.timer_callback_checks():
-            return
-
+    #Calculates goal position based on point cloud (helper for timer_callback)
+    def calculate_goal(self) -> Optional[PoseStamped]:
         #convert point cloud to robot relative points
         points_base = self.cloud_to_base_points(self.latest_cloud)
         
         #ensure the result of the above function is usable
         if points_base is None or len(points_base) == 0:
             self.get_logger().warn("No usable lane points after TF/filtering.")
-            return
+            return None
 
         #estimate where the center of the lane is at lookahead distance
         center_goal_base = self.compute_center_goal(points_base)
@@ -141,7 +155,7 @@ class LaneDirectorNode(Node):
         #ensure the above method finds lane center coords
         if center_goal_base is None:
             self.get_logger().warn("Could not compute lane center goal.")
-            return
+            return None
 
         #transform the goal from robot-relative coords into map coords
         goal_map = self.base_goal_to_map_pose(center_goal_base)
@@ -149,14 +163,9 @@ class LaneDirectorNode(Node):
         #ensure transformation success
         if goal_map is None:
             self.get_logger().warn("Could not transform lane goal to map.")
-            return
+            return None
 
-        #decide whether to send a new goal (you don't need a new goal every second if the target barely moved)
-        if not self.should_send_goal(goal_map):
-            return
-
-        #send the goal to Nav2, asking it to move the robot to the calculated pose
-        self.send_nav_goal(goal_map)
+        return goal_map
 
     #converts point cloud to an array of 3d points, then removes points outside region of interest
     def cloud_to_base_points(self, cloud_msg: PointCloud2) -> Optional[np.ndarray]:
