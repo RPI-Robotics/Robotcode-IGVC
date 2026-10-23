@@ -164,6 +164,7 @@ class GpioEStop(Node):
 
         self.publish_lock(self.estop_active, force=True)
 
+    # Publishes if the estop is active and logs the data with pin number
     def publish_lock(self, locked, force=False):
         if not force and locked == self.last_published:
             return
@@ -188,7 +189,7 @@ class GpioEStop(Node):
 
         super().destroy_node()
 
-
+# creates the estop node and lets it run until the robot is shut down and then it destroys the node
 def main(args=None):
     rclpy.init(args=args)
     node = GpioEStop()
