@@ -69,14 +69,14 @@ class LaneDirectorNode(Node):
         self.latest_cloud: Optional[PointCloud2] = None
         self.last_goal_xy_map: Optional[Tuple[float, float]] = None
 
-        self.enabled_sub = self.create_subscription(
-            Bool,
-            self.get_parameter("enabled_topic").value,
-            self.enabled_callback,
-            10,
+        self.enabled_sub = self.create_subscription( #creates subscription to check whether node is enabled
+            Bool, #expected message type
+            self.get_parameter("enabled_topic").value, #the topic to subscribe to
+            self.enabled_callback, #the method called when a msg arrives on the subscribed topic
+            10, #requested queue depth (determines how messages are buffered when they cannot be processed immediately)
         )
 
-        self.lane_sub = self.create_subscription(
+        self.lane_sub = self.create_subscription( #creates subscription to recieve new point clouds
             PointCloud2,
             self.get_parameter("lane_points_topic").value,
             self.lane_points_callback,
@@ -95,44 +95,70 @@ class LaneDirectorNode(Node):
 
         self.get_logger().info("Lane director node started. Waiting for /enabled.")
 
+    #Calls subscription to check whether node is enabled
     def enabled_callback(self, msg: Bool):
         self.enabled = bool(msg.data)
 
+    #Calls subscription to check for updates in point cloud
     def lane_points_callback(self, msg: PointCloud2):
         self.latest_cloud = msg
-
-    def timer_callback(self):
+        
+    #Ensures necessary information is available to run timer_callback
+    def timer_callback_checks(self) -> bool:
+        #ensure this node is enabled
         if not self.enabled:
-            return
-
+            return False
+        
+        #ensure a point cloud has arrived at some point
         if self.latest_cloud is None:
             self.get_logger().warn("No /lanes/points received yet.")
-            return
-
+            return False
+        
+        #ensure Nav2 is available
         if not self.nav_client.wait_for_server(timeout_sec=0.1):
             self.get_logger().warn("Nav2 navigate_to_pose action not available.")
+            return False
+        
+        return True
+
+
+    def timer_callback(self):
+        #ensure node is enabled and necessary info is available
+        if not self.timer_callback_checks():
             return
 
+        #convert point cloud to robot relative points
         points_base = self.cloud_to_base_points(self.latest_cloud)
+        
+        #ensure the result of the above function is usable
         if points_base is None or len(points_base) == 0:
             self.get_logger().warn("No usable lane points after TF/filtering.")
             return
 
+        #estimate where the center of the lane is at lookahead distance
         center_goal_base = self.compute_center_goal(points_base)
+        
+        #ensure the above method finds lane center coords
         if center_goal_base is None:
             self.get_logger().warn("Could not compute lane center goal.")
             return
 
+        #transform the goal from robot-relative coords into map coords
         goal_map = self.base_goal_to_map_pose(center_goal_base)
+        
+        #ensure transformation success
         if goal_map is None:
             self.get_logger().warn("Could not transform lane goal to map.")
             return
 
+        #decide whether to send a new goal (you don't need a new goal every second if the target barely moved)
         if not self.should_send_goal(goal_map):
             return
 
+        #send the goal to Nav2, asking it to move the robot to the calculated pose
         self.send_nav_goal(goal_map)
 
+    #converts point cloud to an array of 3d points, then removes points outside region of interest
     def cloud_to_base_points(self, cloud_msg: PointCloud2) -> Optional[np.ndarray]:
         """
         Convert input PointCloud2 into Nx3 array in base_link frame.
