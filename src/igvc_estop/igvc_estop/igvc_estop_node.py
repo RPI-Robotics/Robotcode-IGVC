@@ -23,27 +23,27 @@ class GpioEStop(Node):
         self.declare_parameter("lock_topic", "/emergency_stop_lock")
         self.declare_parameter("reset_topic", "/emergency_stop_reset")
 
-        # Disable the simulation parameter so that the robot is watching for real signals 
+        # When in sim the robot will look for sim signals, and not real ones 
         self.use_sim_gpio = self.get_parameter("use_sim_gpio").value
         self.sim_gpio_topic = self.get_parameter("sim_gpio_topic").value
 
-        # Set the in/out pin to Board 7 and active at HIGH
+        # Main e-stop pin: which pin, how pins are numbered, and whether HIGH means stop
         self.pin = self.get_parameter("gpio_pin").value
         self.mode = self.get_parameter("gpio_mode").value.upper()
         self.active_high = self.get_parameter("active_high").value
 
-        # Set the in/out pin to Board 11 and active at LOW
+        # Mechanical e-stop pin: same idea, but active_low means LOW = stop
         self.mech_pin = self.get_parameter("mechanical_estop_pin").value
         self.mech_active_low = self.get_parameter("mechanical_active_low").value
 
-        # Set the latch(Estop brake override) on and look for a reset or activation at poll_hz value (default is 50, as set above, so every 20ms)
+        # latch keeps the stop on after the input clears, until a reset
         self.latch = self.get_parameter("latch").value
         self.poll_hz = float(self.get_parameter("poll_hz").value)
         self.enabled_topic = "/enabled"
         self.lock_topic = self.get_parameter("lock_topic").value
         self.reset_topic = self.get_parameter("reset_topic").value
 
-        # This tells the robot wether the Estop is active , and last published ensures that the robot does not recalculate if the same command is given
+        # This tells the robot whether the Estop is active , last_published is the last lock value sent, so we only publish when it changes
         self.estop_active = False
         self.last_published = None
         self.sim_gpio_high = False
@@ -56,11 +56,7 @@ class GpioEStop(Node):
         self.lock_pub = self.create_publisher(Bool, self.lock_topic, 1)
         self.estop_cmd_pub = self.create_publisher(Twist, "/cmd_vel_estop", 1)
         
-        # The topic subscriptions are:
-        #   Bool: wether autonomy is enabled 
-        #   reset_topic(/emergency_stop_reset):  
-        #
-        #
+        # Listens for the reset message. A True message clears the Estop
         self.reset_sub = self.create_subscription(
             Bool,
             self.reset_topic,
@@ -83,7 +79,7 @@ class GpioEStop(Node):
                 f"Using sim GPIO topic: {self.sim_gpio_topic}"
             )
 
-        # Imports the General Propose In/Out pin 
+        # Load the pin library and set both pins as inputs 
         else:
             import Jetson.GPIO as GPIO
             self.GPIO = GPIO
@@ -102,7 +98,7 @@ class GpioEStop(Node):
         self.timer = self.create_timer(1.0 / self.poll_hz, self.poll_gpio)
         self.zero_timer = self.create_timer(0.05, self.publish_zero_cmd_if_estopped)
 
-        self.publish_lock(False, force=True)
+        self.poll_gpio()
 
     def sim_gpio_callback(self, msg):
         self.sim_gpio_high = msg.data
@@ -127,7 +123,7 @@ class GpioEStop(Node):
         else:
             return high
 
-    # Simple function that returns if a Estop has been requested from any source
+    # Simple function that returns if an Estop has been requested from any source
     def any_estop_requested(self):
         return (
             self.main_gpio_requests_estop()
@@ -177,10 +173,10 @@ class GpioEStop(Node):
         self.last_published = locked
 
         if locked:
-            self.get_logger().error(f"E-STOP ACTIVE: twist_mux locked. {self.GPIO.input(self.mech_pin)}")
+            self.get_logger().error(f"E-STOP ACTIVE: twist_mux locked. main={self.main_gpio_requests_estop()}, mechanical={self.mechanical_gpio_requests_estop()}")
             self.enabled_pub.publish(enabled_msg)
         else:
-            self.get_logger().info(f"E-stop clear: twist_mux unlocked. {self.GPIO.input(self.mech_pin)}")
+            self.get_logger().info(f"E-stop clear: twist_mux unlocked.")
 
     # Releases the pins and destroys the node
     def destroy_node(self):
