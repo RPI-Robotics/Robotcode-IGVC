@@ -201,27 +201,36 @@ class LaneDirectorNode(Node):
 
         return points[mask]
 
+    #points_base is a numpy array of x, y coords
+    #positive X is forward, positive Y is left
     def compute_center_goal(self, points_base: np.ndarray) -> Optional[Tuple[float, float]]:
         """
         Returns a goal point in base_link frame: (x_goal, y_goal).
         """
+        
+        #ensure enough points are detected to find an accurate goal
         min_total = int(self.get_parameter("min_total_points").value)
         if len(points_base) < min_total:
             return None
 
-        lookahead = float(self.get_parameter("lookahead_distance_m").value)
-        side_split = float(self.get_parameter("side_split_y_m").value)
-        nominal_width = float(self.get_parameter("nominal_lane_width_m").value)
-        max_center_y = float(self.get_parameter("max_center_y_m").value)
-        min_side_points = int(self.get_parameter("min_points_per_side").value)
+        #retrieve and store necessary parameters for convenient use
+        lookahead = float(self.get_parameter("lookahead_distance_m").value)     #how far ahead of the robot to calculate the goal
+        side_split = float(self.get_parameter("side_split_y_m").value)          #any point whose y coord is less than side_split is right side, anything greater is left side
+        nominal_width = float(self.get_parameter("nominal_lane_width_m").value) #assumed lane width when only 1 boundary visible
+        max_center_y = float(self.get_parameter("max_center_y_m").value)        #limit on how far the goal can be from the robot in Y direction
+        min_side_points = int(self.get_parameter("min_points_per_side").value)  #minimum points needed to estimate a boundary
 
         # Split lane points.
         left = points_base[points_base[:, 1] > side_split]
         right = points_base[points_base[:, 1] < -side_split]
 
+        #check if amt of points on a given side is enough to estimate a boundary
+        #if not, set left_y and right_y to none
         left_y = self.estimate_y_at_x(left, lookahead) if len(left) >= min_side_points else None
         right_y = self.estimate_y_at_x(right, lookahead) if len(right) >= min_side_points else None
 
+        #center_y is the y-coord of the lane center, and what we return as the y-coord for the goal
+        #if left_y and right_y can be determined, take their average to find the lane center
         if left_y is not None and right_y is not None:
             center_y = 0.5 * (left_y + right_y)
 
@@ -233,11 +242,14 @@ class LaneDirectorNode(Node):
             # Only right lane visible. Drive nominally half a lane width to its left.
             center_y = right_y + nominal_width / 2.0
 
+        #if no boundaries can be found, return none
         else:
             return None
 
+        #clamp calculated center to ensure it's within reasonable distance of robot
         center_y = float(np.clip(center_y, -max_center_y, max_center_y))
 
+        #goal x-coord is always the lookahead
         return lookahead, center_y
 
     def estimate_y_at_x(self, points: np.ndarray, x_query: float) -> Optional[float]:
