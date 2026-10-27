@@ -2,3 +2,6 @@
 	path = src/rplidar_ros
 	url = https://github.com/Slamtec/rplidar_ros.git
 	branch = ros2
+[submodule "um982"]
+	path = src/unicore-um982-ros2-driver
+	url = https://github.com/jm2unbound/unicore-um982-ros2-driver.git
