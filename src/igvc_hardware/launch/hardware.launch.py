@@ -11,23 +11,21 @@ IMU_NAME = "TODO" # TODO
 def generate_launch_description():
     # Declare args
     
-    #lowk unnecessary, but allows other ports in testing 
-    micro_ros_argument = DeclareLaunchArgument(
+    #should use /dev/serial/by-id/ or /dev/serial/by-path/ to avoid conflict with gps
+    launch_args = [ DeclareLaunchArgument(
         'micro_ros_port',
         default_value='/dev/ttyUSB0', 
         description='serial device for micro-ROS'
-    )
+    )]
     
-    #assuming baud rates match, which they should
-    launch_micro_ros_agent = Node(
-        package='micro_ros_agent',
-        executable='micro_ros_agent',
-        name='micro_ros_agent',
-        output='screen',
-        arguments=[
+    micro_ros_arg = LaunchConfiguration('micro_ros_port')
+    
+    launch_micro_ros_agent = get_node("micro_ros_agent", "micro_ros_agent",
+        name = 'micro_ros_agent',
+        arguments = [
             'serial',
-            '--dev', LaunchConfiguration('micro_ros_port')
-        ]
+            '--dev', micro_ros_arg
+        ],                                    
     )
         
     launch_navsat_node = Node(
@@ -41,14 +39,6 @@ def generate_launch_description():
             "frame_id" : "navsat_link",
         }],
     )
-    
-    # no longer necessary
-    #launch_led_bridge_node = Node(
-    #    package='led_bridge',
-    #    executable='led_bridge',
-    #    name='led_bridge',
-    #    output='screen',
-    #)
 
     launch_zed_node = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -88,7 +78,7 @@ def generate_launch_description():
     )
 
     nodes = [
-        micro_ros_argument,
+        *launch_args,
         launch_micro_ros_agent,
         launch_navsat_node,
         launch_zed_node,
