@@ -6,6 +6,7 @@ lane_points_node:
     debug_topic: /lanes/debug_image
 
     roi_top_fraction: 0.40
+    roi_bottom_fraction: 0.90
     min_lightness: 190
     max_saturation: 255
 
@@ -23,3 +24,5 @@ lane_points_node:
     max_range_m: 5.0
     max_abs_xyz_m: 20.0
     max_points: 3000
+    max_z: 1
+    max_dz: 1

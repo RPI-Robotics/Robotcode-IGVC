@@ -25,6 +25,7 @@ class LanePointsNode(Node):
 
         # Image filtering
         self.declare_parameter("roi_top_fraction", 0.40)
+        self.declare_parameter("roi_bottom_fraction", 0.9)
         self.declare_parameter("min_lightness", 130)
         self.declare_parameter("max_saturation", 170)
         
@@ -46,6 +47,8 @@ class LanePointsNode(Node):
         self.declare_parameter("max_range_m", 5.0)
         self.declare_parameter("max_abs_xyz_m", 20.0)
         self.declare_parameter("max_points", 3000)
+        self.declare_parameter("z_max", 1)
+        self.declare_parameter("dz_max", 1)
 
         self.bridge = CvBridge()
 
@@ -153,7 +156,7 @@ class LanePointsNode(Node):
         h, w = bgr.shape[:2]
 
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
-        roi_bottom = int(h * 0.90) # TODO: Replace with variable
+        roi_bottom = int(h * float(self.get_parameter("roi_top_fraction").value))
         min_lightness = int(self.get_parameter("min_lightness").value)
         max_saturation = int(self.get_parameter("max_saturation").value)
 
@@ -175,10 +178,10 @@ class LanePointsNode(Node):
         ch, cw = xyz_mat.shape[:2]
         color_mask = cv2.resize(mask, (cw, ch), interpolation=cv2.INTER_NEAREST) > 0
 
-        z_mask = xyz_mat[:, :, 2] < 1  # TODO: Replace with variable
+        z_mask = xyz_mat[:, :, 2] < int(self.get_parameter("z_max").value)
 
         dz_mask = np.zeros((ch, cw), dtype=bool)
-        dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
+        dz_mask[1:] = np.abs(dzdr_mat) < int(self.get_parameter("dz_max").value)
 
         # Upscale cloud-resolution masks to image resolution (same shape as mask)
         z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
