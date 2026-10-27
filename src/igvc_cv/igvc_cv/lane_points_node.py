@@ -205,7 +205,7 @@ class LanePointsNode(Node):
         z_mask = xyz_mat[:, :, 2] < int(self.get_parameter("z_max").value)
 
         dz_mask = np.zeros((ch, cw), dtype=bool)
-        dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
+        dz_mask[1:] = np.abs(dzdr_mat) < int(self.get_parameter("dz_max").value)
 
         # Upscale cloud-resolution masks to image resolution (same shape as mask)
         z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
