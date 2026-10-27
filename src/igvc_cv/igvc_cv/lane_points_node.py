@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import warnings
 from typing import List, Tuple
 
 import cv2
@@ -66,7 +67,9 @@ class LanePointsNode(Node):
         self.mask_pub = self.create_publisher(Image, "/lanes/debug_mask", 10)
         self.blur_pub = self.create_publisher(Image, "/lanes/debug_blur", 10)
         self.edges_pub = self.create_publisher(Image, "/lanes/debug_edges", 10)
-        self.hough_pub = self.create_publisher(Image, "/lanes/debug_hough", 10)
+        self.lines_pub = self.create_publisher(Image, "/lanes/debug_lines", 10)
+        self.z_pub = self.create_publisher(Image, "/lanes/debug_z", 10)
+        self.dzdr_pub = self.create_publisher(Image, "/lanes/debug_dzdr", 10)
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -113,6 +116,9 @@ class LanePointsNode(Node):
 
         image_h, image_w = bgr.shape[:2]
 
+        # Debug images reuse the camera image's header so Foxglove lines them up with the raw image
+        self.debug_header = image_msg.header
+
         line_points, line_mask = self.detect_lane_line_pixels(bgr, cloud_msg)
 
         min_range = float(self.get_parameter("min_range_m").value)
@@ -135,25 +141,43 @@ class LanePointsNode(Node):
         self.publish_points(cloud_msg.header, points.tolist())
 
         debug_msg = self.bridge.cv2_to_imgmsg(line_mask.astype(np.uint8) * 255, encoding="mono8")
-        debug_msg.header = cloud_msg.header
+        debug_msg.header = image_msg.header
         self.debug_pub.publish(debug_msg)
 
         self.get_logger().info(
             f"lane debug: mask_px={len(line_points)}, points={len(points)}"
         )
         
-    def publish_debug_image(self, pub, img: np.ndarray, frame_id: str = "camera"):
-        msg = self.bridge.cv2_to_imgmsg(img, encoding="mono8" if len(img.shape) == 2 else "bgr8")
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = frame_id
+    def publish_debug_image(self, pub, img: np.ndarray):
+        if img.dtype == np.float32:
+            encoding = "32FC1"
+        else:
+            encoding = "mono8" if len(img.shape) == 2 else "bgr8"
+        msg = self.bridge.cv2_to_imgmsg(img, encoding=encoding)
+        msg.header = self.debug_header
         pub.publish(msg)
 
     def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
+        h, w = bgr.shape[:2]
+        
         xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
+        xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
         dzdr_mat = xyz_diff_mat[:,:,2] / np.clip(np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2), 1e-6, None)
-        
-        h, w = bgr.shape[:2]
+
+        z_cloud = self.fill_nan_median(xyz_mat[:, :, 2], 5)  # TODO: Replace with variable
+        self.publish_debug_image(self.z_pub, cv2.resize(z_cloud, (w, h), interpolation=cv2.INTER_NEAREST))
+
+        # dzdr has one fewer row than the cloud, so pad row 0 with NaN to keep pixels aligned, then upscale like z
+        dzdr_cloud = np.full(xyz_mat.shape[:2], np.nan, dtype=np.float32)
+        dzdr_cloud[1:] = np.abs(dzdr_mat)
+
+        # Rolling 8x8 max of |dzdr| to suppress noise; NaNs are ignored in the max
+        dzdr_nan = np.isnan(dzdr_cloud)
+        dzdr_cloud = cv2.dilate(np.where(dzdr_nan, 0, dzdr_cloud).astype(np.float32), np.ones((8, 8), np.uint8))
+
+        dzdr_img = cv2.resize(dzdr_cloud, (w, h), interpolation=cv2.INTER_NEAREST)
+        self.publish_debug_image(self.dzdr_pub, dzdr_img)
 
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
         roi_bottom = int(h * float(self.get_parameter("roi_top_fraction").value))
@@ -181,19 +205,35 @@ class LanePointsNode(Node):
         z_mask = xyz_mat[:, :, 2] < int(self.get_parameter("z_max").value)
 
         dz_mask = np.zeros((ch, cw), dtype=bool)
-        dz_mask[1:] = np.abs(dzdr_mat) < int(self.get_parameter("dz_max").value)
+        dz_mask[1:] = np.abs(dzdr_mat) < 1  # TODO: Replace with variable
 
         # Upscale cloud-resolution masks to image resolution (same shape as mask)
         z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
         dz_mask = cv2.resize(dz_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
-        xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
-
-        line_mask = mask&z_mask & dz_mask
+        
+        line_mask = (mask > 0) & z_mask & dz_mask
         line_mask[:roi_top] = False
         line_mask[roi_bottom:] = False
+        
+        self.publish_debug_image(self.lines_pub, line_mask.astype(np.uint8) * 255)
 
         line_points = xyz_img[line_mask]
         return line_points, line_mask
+
+    def fill_nan_median(self, img: np.ndarray, ksize: int) -> np.ndarray:
+        """Replace each NaN with the median of the non-NaN values in its ksize x ksize neighborhood.
+        Pixels whose whole neighborhood is NaN stay NaN."""
+        out = np.ascontiguousarray(img, dtype=np.float32).copy()
+        nan_r, nan_c = np.nonzero(np.isnan(out))
+        if len(nan_r) == 0:
+            return out
+        pad = ksize // 2
+        padded = np.pad(out, pad, mode="constant", constant_values=np.nan)
+        windows = np.lib.stride_tricks.sliding_window_view(padded, (ksize, ksize))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN neighborhoods
+            out[nan_r, nan_c] = np.nanmedian(windows[nan_r, nan_c], axis=(1, 2))
+        return out
 
     def cloud_to_xyz_matrix(self, cloud_msg: PointCloud2) -> np.ndarray:
         """Return an (H, W, 3) array where [i][j] is the XYZ point at pixel row i, column j."""
@@ -201,9 +241,13 @@ class LanePointsNode(Node):
             cloud_msg,
             field_names=("x", "y", "z"),
             skip_nans=False,
-            reshape_organized_cloud=True,
         )
-        return np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
+        # Reshape manually: Jazzy's reshape_organized_cloud does reshape(width, height), which scrambles rows
+        pts = pts.reshape(cloud_msg.height, cloud_msg.width)
+        xyz = np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
+        # ZED marks invalid depth as +/-inf; convert to NaN so diff/divide propagate quietly
+        xyz[~np.isfinite(xyz)] = np.nan
+        return xyz
 
     def publish_points(self, header, points: List[Tuple[float, float, float]]):
         msg = point_cloud2.create_cloud_xyz32(header, points)
