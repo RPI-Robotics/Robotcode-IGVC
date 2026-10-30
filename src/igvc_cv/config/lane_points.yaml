@@ -7,11 +7,14 @@ lane_points_node:
 
     roi_top_fraction: 0.40
     roi_bottom_fraction: 0.90
-    min_lightness: 190
-    max_saturation: 255
+    min_value: 85   
+    max_saturation: 60
 
     blur_kernel_size: 11
-    blur_sigma: 0.0
+    blur_sigma: 2.0
+
+    alpha: 20
+    beta: 200
 
     canny_low: 25
     canny_high: 150

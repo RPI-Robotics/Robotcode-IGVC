@@ -27,12 +27,16 @@ class LanePointsNode(Node):
         # Image filtering
         self.declare_parameter("roi_top_fraction", 0.40)
         self.declare_parameter("roi_bottom_fraction", 0.9)
-        self.declare_parameter("min_lightness", 130)
-        self.declare_parameter("max_saturation", 170)
+        self.declare_parameter("max_saturation", 255)
+        self.declare_parameter("min_value", 0)
         
         # Blur
         self.declare_parameter("blur_kernel_size", 11)
         self.declare_parameter("blur_sigma", 0.0)
+        
+        # Normalization
+        self.declare_parameter("beta", 255)
+        self.declare_parameter("alpha", 0)
 
         # Canny / Hough
         self.declare_parameter("canny_low", 50)
@@ -64,6 +68,8 @@ class LanePointsNode(Node):
             self.get_parameter("debug_topic").value,
             10,
         )
+        self.roi_pub = self.create_publisher(Image, "/lanes/debug_roi", 10)
+        self.input_pub = self.create_publisher(Image, "/lanes/debug_zed_in", 10)
         self.mask_pub = self.create_publisher(Image, "/lanes/debug_mask", 10)
         self.blur_pub = self.create_publisher(Image, "/lanes/debug_blur", 10)
         self.edges_pub = self.create_publisher(Image, "/lanes/debug_edges", 10)
@@ -160,6 +166,8 @@ class LanePointsNode(Node):
     def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
         h, w = bgr.shape[:2]
         
+        self.publish_debug_image(self.input_pub, bgr)
+        
         xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
         xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
@@ -180,18 +188,31 @@ class LanePointsNode(Node):
         self.publish_debug_image(self.dzdr_pub, dzdr_img)
 
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
-        roi_bottom = int(h * float(self.get_parameter("roi_top_fraction").value))
-        min_lightness = int(self.get_parameter("min_lightness").value)
+        roi_bottom = int(h * float(self.get_parameter("roi_bottom_fraction").value))
         max_saturation = int(self.get_parameter("max_saturation").value)
+        min_value = int(self.get_parameter("min_value").value)
+        normalization_beta = int(self.get_parameter("beta").value)
+        normalization_alpha = int(self.get_parameter("alpha").value)
+        blur_kernel_size = int(self.get_parameter("blur_kernel_size").value)
+        blur_sigma = float(self.get_parameter("blur_sigma").value)
+        
+        blurred_img = cv2.GaussianBlur(bgr, (blur_kernel_size, blur_kernel_size), blur_sigma)
+        normalized_img = cv2.normalize(blurred_img, None, alpha=normalization_alpha, beta=normalization_beta, norm_type=cv2.NORM_MINMAX)
 
-        hls = cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS)
-        lightness = hls[:, :, 1]
-        saturation = hls[:, :, 2]
+        hsv = cv2.cvtColor(normalized_img, cv2.COLOR_BGR2HSV)
+        saturation = hsv[:, :, 1]
+        value = hsv[:, :, 2]
 
         mask = np.zeros((h, w), dtype=np.uint8)
-        mask[(lightness >= min_lightness) & (saturation <= max_saturation)] = 255
+        mask[(min_value <= value) & (saturation <= max_saturation)] = 255
         mask[:roi_top, :] = 0
         mask[roi_bottom:, :] = 0
+
+        roi_mask = 255*np.ones_like(mask)
+        roi_mask[:roi_top, :] = 0
+        roi_mask[roi_bottom:, :] = 0
+        
+        self.publish_debug_image(self.roi_pub, roi_mask)
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
