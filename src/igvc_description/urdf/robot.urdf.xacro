@@ -1,36 +1,12 @@
 <?xml version="1.0" ?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="igvc_robot">
-    <xacro:arg name="prefix" default="" />
-    <xacro:arg name="use_mock_hardware" default="false" />
 
-    <link name="base_footprint"/>
     <link name="base_link"/>
+    <link name="zed_camera_link"/>
 
-    <joint name="base_joint" type="fixed">
+    <joint name="camera_joint" type="fixed">
         <parent link="base_link"/>
-        <origin rpy="0 0 0" xyz="0 0 0.01"/>
-        <child link="part_1"/>
-        <axis xyz="0 0 1"/>
+        <origin rpy="0 0 0" xyz="0 0 1.0795"/>
+        <child link="zed_camera_link"/>
     </joint>
-
-    <joint name="footprint_joint" type="fixed">
-        <parent link="base_link"/>
-        <origin rpy="0 0 0" xyz="0 0 0.01"/>
-        <child link="base_footprint"/>
-        <axis xyz="0 0 1"/>
-    </joint>
-	
-    <xacro:include filename="$(find igvc_description)/urdf/model.urdf.xacro"/>
-    <xacro:include filename="$(find igvc_description)/urdf/sensors.urdf.xacro"/>
-
-    <xacro:include filename="$(find igvc_description)/control/bot.ros2_control.xacro" />
-
-    <xacro:bot_ros2_control name="IGVC_Bot" prefix="$(arg prefix)" use_mock_hardware="$(arg use_mock_hardware)"/>
-
-    <gazebo>
-        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-        <parameters>$(find igvc_hardware)/config/bot_controllers.yaml</parameters>
-        </plugin>
-    </gazebo>
-
 </robot>
