@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import math
-import struct
+import warnings
 from typing import List, Tuple
 
 import cv2
@@ -26,12 +26,17 @@ class LanePointsNode(Node):
 
         # Image filtering
         self.declare_parameter("roi_top_fraction", 0.40)
-        self.declare_parameter("min_lightness", 130)
-        self.declare_parameter("max_saturation", 170)
+        self.declare_parameter("roi_bottom_fraction", 0.9)
+        self.declare_parameter("max_saturation", 255)
+        self.declare_parameter("min_value", 0)
         
         # Blur
         self.declare_parameter("blur_kernel_size", 11)
         self.declare_parameter("blur_sigma", 0.0)
+        
+        # Normalization
+        self.declare_parameter("beta", 255)
+        self.declare_parameter("alpha", 0)
 
         # Canny / Hough
         self.declare_parameter("canny_low", 50)
@@ -47,6 +52,8 @@ class LanePointsNode(Node):
         self.declare_parameter("max_range_m", 5.0)
         self.declare_parameter("max_abs_xyz_m", 20.0)
         self.declare_parameter("max_points", 3000)
+        self.declare_parameter("z_max", 1)
+        self.declare_parameter("dz_max", 1)
 
         self.bridge = CvBridge()
 
@@ -61,10 +68,14 @@ class LanePointsNode(Node):
             self.get_parameter("debug_topic").value,
             10,
         )
+        self.roi_pub = self.create_publisher(Image, "/lanes/debug_roi", 10)
+        self.input_pub = self.create_publisher(Image, "/lanes/debug_zed_in", 10)
         self.mask_pub = self.create_publisher(Image, "/lanes/debug_mask", 10)
         self.blur_pub = self.create_publisher(Image, "/lanes/debug_blur", 10)
         self.edges_pub = self.create_publisher(Image, "/lanes/debug_edges", 10)
-        self.hough_pub = self.create_publisher(Image, "/lanes/debug_hough", 10)
+        self.lines_pub = self.create_publisher(Image, "/lanes/debug_lines", 10)
+        self.z_pub = self.create_publisher(Image, "/lanes/debug_z", 10)
+        self.dzdr_pub = self.create_publisher(Image, "/lanes/debug_dzdr", 10)
 
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -111,48 +122,97 @@ class LanePointsNode(Node):
 
         image_h, image_w = bgr.shape[:2]
 
-        line_uvs_image, debug_img = self.detect_lane_line_pixels(bgr)
-        line_uvs_cloud = self.scale_uvs_to_cloud(
-            line_uvs_image,
-            image_w,
-            image_h,
-            cloud_msg.width,
-            cloud_msg.height,
+        # Debug images reuse the camera image's header so Foxglove lines them up with the raw image
+        self.debug_header = image_msg.header
+
+        line_points, line_mask = self.detect_lane_line_pixels(bgr, cloud_msg)
+
+        min_range = float(self.get_parameter("min_range_m").value)
+        max_range = float(self.get_parameter("max_range_m").value)
+        max_abs = float(self.get_parameter("max_abs_xyz_m").value)
+        max_points = int(self.get_parameter("max_points").value)
+
+        r = np.linalg.norm(line_points, axis=1)
+        keep = (
+            np.all(np.isfinite(line_points), axis=1)
+            & (r >= min_range)
+            & (r <= max_range)
+            & np.all(np.abs(line_points) <= max_abs, axis=1)
         )
+        points = line_points[keep]
 
-        points = self.read_cloud_points(cloud_msg, line_uvs_cloud)
-        self.publish_points(cloud_msg.header, points)
+        if len(points) > max_points:
+            points = points[np.random.choice(len(points), max_points, replace=False)]
 
-        debug_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
+        self.publish_points(cloud_msg.header, points.tolist())
+
+        debug_msg = self.bridge.cv2_to_imgmsg(line_mask.astype(np.uint8) * 255, encoding="mono8")
         debug_msg.header = image_msg.header
         self.debug_pub.publish(debug_msg)
 
         self.get_logger().info(
-            f"lane debug: lines_uv={len(line_uvs_image)}, points={len(points)}"
+            f"lane debug: mask_px={len(line_points)}, points={len(points)}"
         )
         
-    def publish_debug_image(self, pub, img: np.ndarray, frame_id: str = "camera"):
-        msg = self.bridge.cv2_to_imgmsg(img, encoding="mono8" if len(img.shape) == 2 else "bgr8")
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = frame_id
+    def publish_debug_image(self, pub, img: np.ndarray):
+        if img.dtype == np.float32:
+            encoding = "32FC1"
+        else:
+            encoding = "mono8" if len(img.shape) == 2 else "bgr8"
+        msg = self.bridge.cv2_to_imgmsg(img, encoding=encoding)
+        msg.header = self.debug_header
         pub.publish(msg)
 
-    def detect_lane_line_pixels(self, bgr: np.ndarray) -> Tuple[List[Tuple[int, int]], np.ndarray]:
+    def detect_lane_line_pixels(self, bgr: np.ndarray, cloud_msg) -> Tuple[List[Tuple[int, int]], np.ndarray]:
         h, w = bgr.shape[:2]
+        
+        self.publish_debug_image(self.input_pub, bgr)
+        
+        xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
+        xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
+        xyz_diff_mat = np.diff(xyz_mat, axis=0)
+        dzdr_mat = xyz_diff_mat[:,:,2] / np.clip(np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2), 1e-6, None)
+
+        z_cloud = self.fill_nan_median(xyz_mat[:, :, 2], 5)  # TODO: Replace with variable
+        self.publish_debug_image(self.z_pub, cv2.resize(z_cloud, (w, h), interpolation=cv2.INTER_NEAREST))
+
+        # dzdr has one fewer row than the cloud, so pad row 0 with NaN to keep pixels aligned, then upscale like z
+        dzdr_cloud = np.full(xyz_mat.shape[:2], np.nan, dtype=np.float32)
+        dzdr_cloud[1:] = np.abs(dzdr_mat)
+
+        # Rolling 8x8 max of |dzdr| to suppress noise; NaNs are ignored in the max
+        dzdr_nan = np.isnan(dzdr_cloud)
+        dzdr_cloud = cv2.dilate(np.where(dzdr_nan, 0, dzdr_cloud).astype(np.float32), np.ones((8, 8), np.uint8))
+
+        dzdr_img = cv2.resize(dzdr_cloud, (w, h), interpolation=cv2.INTER_NEAREST)
+        self.publish_debug_image(self.dzdr_pub, dzdr_img)
 
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
-        roi_bottom = int(h * 0.90)
-        min_lightness = int(self.get_parameter("min_lightness").value)
+        roi_bottom = int(h * float(self.get_parameter("roi_bottom_fraction").value))
         max_saturation = int(self.get_parameter("max_saturation").value)
+        min_value = int(self.get_parameter("min_value").value)
+        normalization_beta = int(self.get_parameter("beta").value)
+        normalization_alpha = int(self.get_parameter("alpha").value)
+        blur_kernel_size = int(self.get_parameter("blur_kernel_size").value)
+        blur_sigma = float(self.get_parameter("blur_sigma").value)
+        
+        blurred_img = cv2.GaussianBlur(bgr, (blur_kernel_size, blur_kernel_size), blur_sigma)
+        normalized_img = cv2.normalize(blurred_img, None, alpha=normalization_alpha, beta=normalization_beta, norm_type=cv2.NORM_MINMAX)
 
-        hls = cv2.cvtColor(bgr, cv2.COLOR_BGR2HLS)
-        lightness = hls[:, :, 1]
-        saturation = hls[:, :, 2]
+        hsv = cv2.cvtColor(normalized_img, cv2.COLOR_BGR2HSV)
+        saturation = hsv[:, :, 1]
+        value = hsv[:, :, 2]
 
         mask = np.zeros((h, w), dtype=np.uint8)
-        mask[(lightness >= min_lightness) & (saturation <= max_saturation)] = 255
+        mask[(min_value <= value) & (saturation <= max_saturation)] = 255
         mask[:roi_top, :] = 0
         mask[roi_bottom:, :] = 0
+
+        roi_mask = 255*np.ones_like(mask)
+        roi_mask[:roi_top, :] = 0
+        roi_mask[roi_bottom:, :] = 0
+        
+        self.publish_debug_image(self.roi_pub, roi_mask)
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -160,140 +220,55 @@ class LanePointsNode(Node):
 
         self.publish_debug_image(self.mask_pub, mask)
 
-        blur_k = int(self.get_parameter("blur_kernel_size").value) if self.has_parameter("blur_kernel_size") else 11
-        blur_sigma = float(self.get_parameter("blur_sigma").value) if self.has_parameter("blur_sigma") else 0.0
+        ch, cw = xyz_mat.shape[:2]
+        color_mask = cv2.resize(mask, (cw, ch), interpolation=cv2.INTER_NEAREST) > 0
 
-        if blur_k % 2 == 0:
-            blur_k += 1
-        blur_k = max(3, blur_k)
+        z_mask = xyz_mat[:, :, 2] < int(self.get_parameter("z_max").value)
 
-        blurred = cv2.GaussianBlur(mask, (blur_k, blur_k), blur_sigma)
+        dz_mask = np.zeros((ch, cw), dtype=bool)
+        dz_mask[1:] = np.abs(dzdr_mat) < int(self.get_parameter("dz_max").value)
 
-        self.publish_debug_image(self.blur_pub, blurred)
+        # Upscale cloud-resolution masks to image resolution (same shape as mask)
+        z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
+        dz_mask = cv2.resize(dz_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
+        
+        line_mask = (mask > 0) & z_mask & dz_mask
+        line_mask[:roi_top] = False
+        line_mask[roi_bottom:] = False
+        
+        self.publish_debug_image(self.lines_pub, line_mask.astype(np.uint8) * 255)
 
-        edges = cv2.Canny(
-            blurred,
-            int(self.get_parameter("canny_low").value),
-            int(self.get_parameter("canny_high").value),
+        line_points = xyz_img[line_mask]
+        return line_points, line_mask
+
+    def fill_nan_median(self, img: np.ndarray, ksize: int) -> np.ndarray:
+        """Replace each NaN with the median of the non-NaN values in its ksize x ksize neighborhood.
+        Pixels whose whole neighborhood is NaN stay NaN."""
+        out = np.ascontiguousarray(img, dtype=np.float32).copy()
+        nan_r, nan_c = np.nonzero(np.isnan(out))
+        if len(nan_r) == 0:
+            return out
+        pad = ksize // 2
+        padded = np.pad(out, pad, mode="constant", constant_values=np.nan)
+        windows = np.lib.stride_tricks.sliding_window_view(padded, (ksize, ksize))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN neighborhoods
+            out[nan_r, nan_c] = np.nanmedian(windows[nan_r, nan_c], axis=(1, 2))
+        return out
+
+    def cloud_to_xyz_matrix(self, cloud_msg: PointCloud2) -> np.ndarray:
+        """Return an (H, W, 3) array where [i][j] is the XYZ point at pixel row i, column j."""
+        pts = point_cloud2.read_points(
+            cloud_msg,
+            field_names=("x", "y", "z"),
+            skip_nans=False,
         )
-
-        self.publish_debug_image(self.edges_pub, edges)
-
-        lines = cv2.HoughLinesP(
-            edges,
-            rho=1,
-            theta=np.pi / 180.0,
-            threshold=int(self.get_parameter("hough_threshold").value),
-            minLineLength=int(self.get_parameter("hough_min_line_length").value),
-            maxLineGap=int(self.get_parameter("hough_max_line_gap").value),
-        )
-
-        debug = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-
-        sample_step = max(1, int(self.get_parameter("line_sample_step_px").value))
-        max_points = int(self.get_parameter("max_points").value)
-
-        uvs: List[Tuple[int, int]] = []
-
-        if lines is not None:
-            for line in lines:
-                x1, y1, x2, y2 = line[0]
-
-                dx = x2 - x1
-                dy = y2 - y1
-                length = math.hypot(dx, dy)
-
-                angle = abs(math.degrees(math.atan2(dy, dx)))
-
-                # Keep lane-like diagonals, reject horizontal noise and nearly vertical artifacts.
-                if angle < 20.0 or angle > 80.0:
-                    continue
-
-                # Reject very bottom/near-camera noise.
-                line_mid_v = 0.5 * (y1 + y2)
-                if line_mid_v > h * 0.82:
-                    continue
-
-                cv2.line(debug, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-                samples = max(2, int(length / sample_step))
-                for i in range(samples):
-                    t = i / float(samples - 1)
-                    u = int(round((1.0 - t) * x1 + t * x2))
-                    v = int(round((1.0 - t) * y1 + t * y2))
-
-                    if 0 <= u < w and 0 <= v < h:
-                        uvs.append((u, v))
-
-        if len(uvs) > max_points:
-            idx = np.linspace(0, len(uvs) - 1, max_points).astype(np.int32)
-            uvs = [uvs[i] for i in idx]
-
-        self.publish_debug_image(self.hough_pub, debug)
-
-        return uvs, debug
-
-    def scale_uvs_to_cloud(
-        self,
-        image_uvs: List[Tuple[int, int]],
-        image_w: int,
-        image_h: int,
-        cloud_w: int,
-        cloud_h: int,
-    ) -> List[Tuple[int, int]]:
-        if image_w == cloud_w and image_h == cloud_h:
-            return image_uvs
-
-        sx = cloud_w / float(image_w)
-        sy = cloud_h / float(image_h)
-
-        cloud_uvs = []
-        for u, v in image_uvs:
-            cu = int(np.clip(u * sx, 0, cloud_w - 1))
-            cv = int(np.clip(v * sy, 0, cloud_h - 1))
-            cloud_uvs.append((cu, cv))
-
-        return cloud_uvs
-
-    def read_cloud_points(
-        self,
-        cloud_msg: PointCloud2,
-        uvs: List[Tuple[int, int]],
-    ) -> List[Tuple[float, float, float]]:
-        fields = {f.name: f.offset for f in cloud_msg.fields}
-        if not all(k in fields for k in ("x", "y", "z")):
-            self.get_logger().warn("PointCloud2 missing x/y/z fields")
-            return []
-
-        min_range = float(self.get_parameter("min_range_m").value)
-        max_range = float(self.get_parameter("max_range_m").value)
-        max_abs = float(self.get_parameter("max_abs_xyz_m").value)
-
-        points = []
-
-        for u, v in uvs:
-            offset = v * cloud_msg.row_step + u * cloud_msg.point_step
-
-            try:
-                x = struct.unpack_from("f", cloud_msg.data, offset + fields["x"])[0]
-                y = struct.unpack_from("f", cloud_msg.data, offset + fields["y"])[0]
-                z = struct.unpack_from("f", cloud_msg.data, offset + fields["z"])[0]
-            except Exception:
-                continue
-
-            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
-                continue
-
-            r = math.sqrt(x * x + y * y + z * z)
-            if r < min_range or r > max_range:
-                continue
-
-            if abs(x) > max_abs or abs(y) > max_abs or abs(z) > max_abs:
-                continue
-
-            points.append((x, y, z))
-
-        return points
+        # Reshape manually: Jazzy's reshape_organized_cloud does reshape(width, height), which scrambles rows
+        pts = pts.reshape(cloud_msg.height, cloud_msg.width)
+        xyz = np.stack([pts["x"], pts["y"], pts["z"]], axis=-1).astype(np.float32)
+        # ZED marks invalid depth as +/-inf; convert to NaN so diff/divide propagate quietly
+        xyz[~np.isfinite(xyz)] = np.nan
+        return xyz
 
     def publish_points(self, header, points: List[Tuple[float, float, float]]):
         msg = point_cloud2.create_cloud_xyz32(header, points)
