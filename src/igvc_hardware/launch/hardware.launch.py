@@ -33,11 +33,19 @@ def generate_launch_description():
             "device_address" : 0x0E
         }],
     )
+    launch_gps_node = get_launch_file('unicore_um982_driver', 'unicore.launch.py',
+        parameters=[{
+            "config_file" : "/home/ros2_ws/src/unicore-um982-ros2-driver/unicore_um982_driver/config/unicore_driver_params.yaml",
+            "enable_ntrip" : False,
+            "gps_port" : "/dev/ttyUSB0"
+        }],  
+    )
     
     return LaunchDescription([
         launch_navsat_node,
         launch_led_bridge_node,
         launch_zed_node,
         launch_rplidar_node,
-        launch_compass_bridge_node
+        launch_compass_bridge_node,
+        launch_gps_node
     ])
