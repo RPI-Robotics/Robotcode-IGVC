@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:include filename="$(find igvc_description)/urdf/sensor/lidar.urdf.xacro"/>
+    <xacro:include filename="$(find igvc_description)/urdf/sensor/camera.urdf.xacro"/>
+    <xacro:include filename="$(find igvc_description)/urdf/sensor/imu.urdf.xacro"/>
+    <xacro:include filename="$(find igvc_description)/urdf/sensor/gps.urdf.xacro"/>
+
+</robot>

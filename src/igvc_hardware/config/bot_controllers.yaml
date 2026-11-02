@@ -1,0 +1,77 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 10  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+
+    bot_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+bot_drive_controller:
+  ros__parameters:
+    type: diff_drive_controller/DiffDriveController
+    left_wheel_names: ["left_wheel_joint"]
+    right_wheel_names: ["right_wheel_joint"]
+
+    # TODO get from mechanical
+    wheel_separation: 0.4166 # m
+    wheel_radius: 0.127 # m
+
+    wheels_per_side: 1 # TODO look into if we need to make it 2 because we have non-powered steers in the front
+
+    # Correction factors when radii differ from wheel_radius
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: 1.0
+
+
+    tf_frame_prefix_enable: true # Enables adding a prefix to each tf frame id
+    #tf_frame_prefix: # Defaults to the controller namespace. Uncomment & specify if there is ever a need.
+
+    publish_rate: 50.0 # Hz
+    odom_frame_id: odom
+    base_frame_id: base_link
+
+    #TODO These need physical testing
+    pose_covariance_diagonal : [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+
+    open_loop: true # TODO eventually make false, but keep true for initial sims
+    position_feedback: false # TODO we don't have sensors implemented atm
+
+    enable_odom_tf: false # Whether to publish the transformation between the odom & base frame IDs
+
+    cmd_vel_timeout: 0.1 # staling threshold for velocity commands
+    publish_limited_velocity: false # TODO what does this do?
+    velocity_rolling_window_size: 10
+
+    # TODO work w/ mech. & auton to find kinematic limits
+
+    # TODO
+    linear.x.max_velocity: .NAN #2.2352 # 5 mph in meters/second
+    linear.x.min_velocity: .NAN #-2.2352
+
+    # TODO
+    linear.x.max_acceleration: .NAN
+    linear.x.max_deceleration: .NAN
+    linear.x.max_acceleration_reverse: .NAN
+    linear.x.max_deceleration_reverse: .NAN
+
+    #TODO
+    linear.x.max_jerk: .NAN
+    linear.x.min_jerk: .NAN
+
+    # TODO
+    angular.z.max_velocity: .NAN
+    angular.z.min_velocity: .NAN
+
+    # TODO
+    angular.z.max_acceleration: .NAN
+    angular.z.min_acceleration: .NAN
+
+    # TODO
+    angular.z.max_jerk: .NAN
+    angular.z.min_jerk: .NAN
+    right_wheel_radius_multiplier: -1.0
