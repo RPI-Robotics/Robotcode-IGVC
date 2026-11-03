@@ -1,5 +1,5 @@
 scan_to_scan_filter_chain:
-  ros_parameters:
+  ros__parameters:
     filter1:
       name: left_chassis_filter
       type: laser_filters/LaserScanAngularBoundsFilterInPlace
