@@ -1,8 +1,12 @@
 from launch import LaunchDescription
+from launch.substitutions import LaunchConfiguration
 
 from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description(): 
+    
+    gps_port = LaunchConfiguration('gps_port')
+    
     launch_zed_node = get_launch_file("zed_wrapper", 'zed_camera.launch.py',
         launch_arguments={
             'camera_model': 'zed2i',
@@ -37,7 +41,7 @@ def generate_launch_description():
         parameters=[{
             "config_file" : "/home/ros2_ws/src/unicore-um982-ros2-driver/unicore_um982_driver/config/unicore_driver_params.yaml",
             "enable_ntrip" : False,
-            "gps_port" : "/dev/ttyUSB0"
+            "gps_port" : gps_port
         }],  
     )
     
