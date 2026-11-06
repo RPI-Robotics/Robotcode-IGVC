@@ -67,5 +67,5 @@ def generate_launch_description():
         launch_zed_node,
         launch_rplidar_node,
         launch_compass_bridge_node
-    ])
-    return nodes
+    ]
+    return LaunchDescription(nodes)
