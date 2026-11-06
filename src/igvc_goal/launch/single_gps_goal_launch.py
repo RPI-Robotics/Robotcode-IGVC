@@ -1,24 +1,14 @@
-import os
-
-from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
-from launch_ros.actions import Node
+from igvc_launch_utils.launch_helper import *
 
 def generate_launch_description():
-    single_gps_goal_node = Node(
-        package="igvc_goal",
-        executable="single_gps_goal_node",
-        name="single_gps_goal_node",
-        output="screen",
-        parameters=[{
-            "latitude": 42.66823105,
-            "longitude": -83.21846028,
-            "altitude": 0.0,
-            "yaw": 0.0,
-            "require_enabled": True,
-        }],
-    )
+    single_gps_goal_node = get_node("igvc_goal", "single_gps_goal_node", parameters=[{"latitude": 42.66823105,
+                                                                                      "longitude": -83.21846028,
+                                                                                      "altitude": 0.0,
+                                                                                      "yaw": 0.0,
+                                                                                      "require_enabled": True,
+                                                                                      }],
+                                    )
 
     return LaunchDescription([
         single_gps_goal_node

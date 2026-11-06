@@ -1,5 +1,5 @@
 {
-    "name": "ROS 2 Development Container",
+    "name": "IGVC Development Container",
     "privileged": true,
     "build": {
         "dockerfile": "Dockerfile",

@@ -1,5 +1,5 @@
 {
-    "name": "ROS 2 Development Container (nvidia)",
+    "name": "IGVC Development Container (nvidia)",
     "privileged": true,
     "build": {
         "context": "..",
