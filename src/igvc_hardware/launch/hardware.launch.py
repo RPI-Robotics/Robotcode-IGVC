@@ -21,7 +21,6 @@ def generate_launch_description():
     micro_ros_arg = LaunchConfiguration('micro_ros_port')
     
     launch_micro_ros_agent = get_node("micro_ros_agent", "micro_ros_agent",
-        name = 'micro_ros_agent',
         arguments = [
             'serial',
             '--dev', micro_ros_arg
