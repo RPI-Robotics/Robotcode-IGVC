@@ -7,7 +7,7 @@ ekf_node_odom:
     frequency: 30.0
     two_d_mode: true # Recommended to use 2d mode for nav2 in mostly planar environments
     print_diagnostics: true
-    debug: false
+    debug: false # Set to true and specify 'debug_out_file:' to enable debug mode
     publish_tf: true
 
     map_frame: map
@@ -15,26 +15,29 @@ ekf_node_odom:
     base_link_frame: base_link
     world_frame: odom
 
-    odom0: /zed/zed_node/odom
-    odom0_config: [true, true, false, # position
-                  false, false, true, # orientation
-                  true,  true,  false, # linear velocity
-                  false, false, true, # angular velocity
-                  false, false, false] # linear acceleration
-    odom0_queue_size: 10
+    #Wheel odometry
+    odom0: /bot_drive_controller/odom
+    odom0_config: [
+      false, false, false,
+      false, false, false,
+      true,  false, false,
+      false, false, true,
+      false, false, false
+    ]
     odom0_differential: false
     odom0_relative: false
+    odom0_queue_size: 10
 
-    imu0: /zed/zed_node/imu/data
-    imu0_config: [false, false, false, # position
-                  false,  false,  false, # orientation
-                  false, false, false, # linear velocity
-                  false,  false,  true, # angular velocity
-                  false,  false,  false] # linear acceleration
-    imu0_differential: true  # If using a real robot you might want to set this to true, since usually absolute measurements from real imu's are not very accurate
-    imu0_relative: false
-    imu0_queue_size: 10
-    imu0_remove_gravitational_acceleration: true
+    #ZED Visual Inertial Odometry
+    odom1: /zed/zed_node/odom
+    odom1_config: [true, true, false, # position
+                  false, false, true, # orientation
+                  false,  false, false, # linear velocity; not fusing y velocity because ZED mast may move
+                  false, false, false, # angular velocity
+                  false, false, false] # linear acceleration
+    odom1_differential: false
+    odom1_relative: false
+    odom1_queue_size: 10
 
     use_control: false
 
