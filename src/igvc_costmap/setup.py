@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'costmap_clearer_node = igvc_costmap.costmap_clearer_node:main',
         ],
     },
 )

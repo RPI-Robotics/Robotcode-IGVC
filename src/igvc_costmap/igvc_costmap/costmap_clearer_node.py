@@ -34,16 +34,16 @@ class CostmapClearerNode(Node):
         
         
     #callback method which provides a response when this node's service is called
-    async def clear_costmaps_callback(self, clear_request, response):
+    async def clear_costmaps_callback(self, _request, response):
         #ensure local costmap service is available
-        local_success = self.local_costmap_client.wait_for_service(timeout_sec=1.0)
+        local_success = self.local_costmap_client.service_is_ready()
         if not local_success:
             response.success = False
             response.message = "Local costmap service unavailable"
             return response
         
         #ensure global costmap service is available
-        global_success = self.global_costmap_client.wait_for_service(timeout_sec=1.0)
+        global_success = self.global_costmap_client.service_is_ready()
         if not global_success:
             response.success = False
             response.message = "Global costmap service unavailable"
@@ -58,8 +58,8 @@ class CostmapClearerNode(Node):
 
         try:
             #wait for the results of the requests
-            local_result = await local_future
-            global_result = await global_future
+            await local_future
+            await global_future
         except Exception as e:
             #handle failure as a result of an exception
             response.success = False
