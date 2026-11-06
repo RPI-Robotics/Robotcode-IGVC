@@ -35,8 +35,8 @@ class LanePointsNode(Node):
         self.declare_parameter("blur_sigma", 0.0)
         
         # Normalization
-        self.declare_parameter("beta", 255)
-        self.declare_parameter("alpha", 0)
+        self.declare_parameter("normalize_beta", 255)
+        self.declare_parameter("normalize_alpha", 0)
 
         # Canny / Hough
         self.declare_parameter("canny_low", 50)
@@ -52,8 +52,8 @@ class LanePointsNode(Node):
         self.declare_parameter("max_range_m", 5.0)
         self.declare_parameter("max_abs_xyz_m", 20.0)
         self.declare_parameter("max_points", 3000)
-        self.declare_parameter("z_max", 1)
-        self.declare_parameter("dz_max", 1)
+        self.declare_parameter("max_z", 1.0)
+        self.declare_parameter("max_dz", 1.0)
 
         self.bridge = CvBridge()
 
@@ -173,7 +173,7 @@ class LanePointsNode(Node):
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
         dzdr_mat = xyz_diff_mat[:,:,2] / np.clip(np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2), 1e-6, None)
 
-        z_cloud = self.fill_nan_median(xyz_mat[:, :, 2], 5)  # TODO: Replace with variable
+        z_cloud = self.fill_nan_median(xyz_mat[:, :, 2], 5) 
         self.publish_debug_image(self.z_pub, cv2.resize(z_cloud, (w, h), interpolation=cv2.INTER_NEAREST))
 
         # dzdr has one fewer row than the cloud, so pad row 0 with NaN to keep pixels aligned, then upscale like z
@@ -191,54 +191,47 @@ class LanePointsNode(Node):
         roi_bottom = int(h * float(self.get_parameter("roi_bottom_fraction").value))
         max_saturation = int(self.get_parameter("max_saturation").value)
         min_value = int(self.get_parameter("min_value").value)
-        normalization_beta = int(self.get_parameter("beta").value)
-        normalization_alpha = int(self.get_parameter("alpha").value)
+        normalization_beta = float(self.get_parameter("normalize_beta").value)
+        normalization_alpha = float(self.get_parameter("normalize_alpha").value)
         blur_kernel_size = int(self.get_parameter("blur_kernel_size").value)
         blur_sigma = float(self.get_parameter("blur_sigma").value)
         
-        blurred_img = cv2.GaussianBlur(bgr, (blur_kernel_size, blur_kernel_size), blur_sigma)
+        # roi = region of interest
+        roi_img = bgr[roi_top:roi_bottom, :, :]
+        roi_z_img = xyz_img[roi_top:roi_bottom, :, 2]
+        roi_dz_img = dzdr_img[roi_top:roi_bottom, :]
+        
+        roi_mask = 255*np.ones((h, w), np.uint8)
+        roi_mask[:roi_top, :] = 0
+        roi_mask[roi_bottom:, :] = 0
+                
+        self.publish_debug_image(self.roi_pub, roi_mask)
+        
+        blurred_img = cv2.GaussianBlur(roi_img, (blur_kernel_size, blur_kernel_size), blur_sigma)
         normalized_img = cv2.normalize(blurred_img, None, alpha=normalization_alpha, beta=normalization_beta, norm_type=cv2.NORM_MINMAX)
 
         hsv = cv2.cvtColor(normalized_img, cv2.COLOR_BGR2HSV)
         saturation = hsv[:, :, 1]
         value = hsv[:, :, 2]
 
-        mask = np.zeros((h, w), dtype=np.uint8)
-        mask[(min_value <= value) & (saturation <= max_saturation)] = 255
-        mask[:roi_top, :] = 0
-        mask[roi_bottom:, :] = 0
+        value_mask = min_value <= value
+        saturation_mask = saturation <= max_saturation
 
-        roi_mask = 255*np.ones_like(mask)
-        roi_mask[:roi_top, :] = 0
-        roi_mask[roi_bottom:, :] = 0
-        
-        self.publish_debug_image(self.roi_pub, roi_mask)
+        mask = (value_mask & saturation_mask).astype(np.uint8)
 
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-        self.publish_debug_image(self.mask_pub, mask)
+        self.publish_debug_image(self.mask_pub, mask * 255)
 
-        ch, cw = xyz_mat.shape[:2]
-        color_mask = cv2.resize(mask, (cw, ch), interpolation=cv2.INTER_NEAREST) > 0
-
-        z_mask = xyz_mat[:, :, 2] < int(self.get_parameter("z_max").value)
-
-        dz_mask = np.zeros((ch, cw), dtype=bool)
-        dz_mask[1:] = np.abs(dzdr_mat) < int(self.get_parameter("dz_max").value)
-
-        # Upscale cloud-resolution masks to image resolution (same shape as mask)
-        z_mask = cv2.resize(z_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
-        dz_mask = cv2.resize(dz_mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
-        
+        z_mask = roi_z_img < float(self.get_parameter("max_z").value)
+        dz_mask = np.abs(roi_dz_img) < float(self.get_parameter("max_dz").value)
         line_mask = (mask > 0) & z_mask & dz_mask
-        line_mask[:roi_top] = False
-        line_mask[roi_bottom:] = False
         
         self.publish_debug_image(self.lines_pub, line_mask.astype(np.uint8) * 255)
 
-        line_points = xyz_img[line_mask]
+        line_points = xyz_img[roi_top:roi_bottom][line_mask]
         return line_points, line_mask
 
     def fill_nan_median(self, img: np.ndarray, ksize: int) -> np.ndarray:

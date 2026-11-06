@@ -13,8 +13,8 @@ lane_points_node:
     blur_kernel_size: 11
     blur_sigma: 2.0
 
-    alpha: 20
-    beta: 200
+    normalize_alpha: 20
+    normalize_beta: 200
 
     canny_low: 25
     canny_high: 150
@@ -27,5 +27,5 @@ lane_points_node:
     max_range_m: 10.0
     max_abs_xyz_m: 20.0
     max_points: 3000
-    max_z: 1
-    max_dz: 1
+    max_z: 1.0
+    max_dz: 1.0
