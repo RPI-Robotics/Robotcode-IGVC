@@ -1,8 +1,26 @@
 from launch import LaunchDescription
+from launch.substitutions import  PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration
+from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 from igvc_launch_utils.launch_helper import *
-
+            
 def generate_launch_description(): 
+    # Declare args
+  
+    # should use /dev/serial/by-id/ or /dev/serial/by-path/ to avoid conflict with gps
+    launch_args = [ DeclareLaunchArgument(
+        'micro_ros_port',
+        default_value='/dev/ttyUSB0', 
+        description='serial device for micro-ROS'
+    )]
+    
+    micro_ros_arg = LaunchConfiguration('micro_ros_port')
+
+
     launch_zed_node = get_launch_file("zed_wrapper", 'zed_camera.launch.py',
         launch_arguments={
             'camera_model': 'zed2i',
@@ -26,7 +44,7 @@ def generate_launch_description():
             "frame_id" : "navsat_link",
         }],
     )
-    launch_led_bridge_node = get_node('led_bridge', 'led_bridge')
+      
     launch_compass_bridge_node = get_node('compass_bridge', 'compass_bridge',
         parameters=[{
             "i2c_bus" : 7,
@@ -34,10 +52,20 @@ def generate_launch_description():
         }],
     )
     
-    return LaunchDescription([
+    launch_micro_ros_agent_node = get_node("micro_ros_agent", "micro_ros_agent",
+        arguments = [
+            'serial',
+            '--dev', micro_ros_arg
+        ],                                    
+    )
+
+
+    nodes = [
+        *launch_args,
+        launch_micro_ros_agent_node,
         launch_navsat_node,
-        launch_led_bridge_node,
         launch_zed_node,
         launch_rplidar_node,
         launch_compass_bridge_node
     ])
+    return nodes
