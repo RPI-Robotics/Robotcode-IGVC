@@ -12,6 +12,12 @@
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
+  <depend condition="$SIM_ENABLED == true">rmw_cyclonedds_cpp</depend>
+  <depend condition="$SIM_ENABLED == true">rqt_tf_tree</depend>
+  <depend condition="$SIM_ENABLED == true">rqt_graph</depend>
+  <depend condition="$SIM_ENABLED == true">rqt_image_view</depend>
+
+
   <exec_depend>igvc_launch_utils</exec_depend>
 
   <export>

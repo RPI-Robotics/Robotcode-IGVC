@@ -15,6 +15,9 @@
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
+  <depend condition="$SIM_ENABLED == true">teleop_twist_keyboard</depend>
+  <depend condition="$SIM_ENABLED == true">gnome-terminal</depend>
+  
   <exec_depend>igvc_launch_utils</exec_depend>
 
   <export>
