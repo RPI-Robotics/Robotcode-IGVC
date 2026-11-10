@@ -53,7 +53,7 @@ def generate_launch_description():
     launch_gps_node = get_launch_file('unicore_um982_driver', 'unicore.launch.py',
         parameters=[{
             "config_file" :  get_config('unicore_um982_driver',
-            '/home/ros2_ws/src/unicore-um982-ros2-driver/unicore_um982_driver/config/unicore_driver_params.yaml'),
+            'unicore_driver_params.yaml'),
             "enable_ntrip" : enable_ntrip,
             "ntrip_user" : ntrip_user,
             "ntrip_pass" : "none",
