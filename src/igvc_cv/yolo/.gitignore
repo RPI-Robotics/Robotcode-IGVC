@@ -1,0 +1,9 @@
+datasets/
+runs/
+models/*.pt
+models/*.onnx
+models/*.engine
+
+# auto-downloaded base weights
+/*.pt
+scripts/*.pt

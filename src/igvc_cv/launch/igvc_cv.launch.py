@@ -3,6 +3,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 #!/usr/bin/env python3
@@ -31,6 +34,17 @@ def generate_launch_description():
         parameters=[params_file],
     )
 
+    yolo_detect_node = Node(
+        package="igvc_cv",
+        executable="yolo_detect_node",
+        name="yolo_detect_node",
+        output="screen",
+        parameters=[os.path.join(pkg_share, "config", "yolo_detect.yaml")],
+        condition=IfCondition(LaunchConfiguration("use_yolo")),
+    )
+
     return LaunchDescription([
+        DeclareLaunchArgument("use_yolo", default_value="true"),
         lane_points_node,
+        yolo_detect_node,
     ])

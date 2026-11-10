@@ -14,6 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join("share", package_name, "launch"), glob("launch/*.py")),
         (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+        (os.path.join("share", package_name, "models"), glob("yolo/models/*.pt") + glob("yolo/models/*.engine")),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,6 +30,7 @@ setup(
     entry_points={
         'console_scripts': [
             "lane_points_node = igvc_cv.lane_points_node:main",
+            "yolo_detect_node = igvc_cv.yolo_detect_node:main",
         ],
     },
 )

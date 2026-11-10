@@ -1,0 +1,22 @@
+yolo_detect_node:
+  ros__parameters:
+    image_topic: /zed/zed_node/rgb/color/rect/image
+    cloud_topic: /zed/zed_node/point_cloud/cloud_registered
+    points_topic: /objects/points
+    detections_topic: /objects/detections
+    debug_topic: /objects/debug_image
+
+    # Empty = <share>/igvc_cv/models/best.engine if present, else best.pt.
+    model_path: ""
+    conf: 0.4
+    iou: 0.5
+    imgsz: 640
+    device: ""
+
+    costmap_classes: ["drum"]
+
+    min_range_m: 0.3
+    max_range_m: 8.0
+    max_abs_xyz_m: 20.0
+    max_points_per_object: 1000
+    mask_erode_px: 2
