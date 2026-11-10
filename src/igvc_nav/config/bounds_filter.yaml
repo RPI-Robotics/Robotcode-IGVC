@@ -1,14 +1,14 @@
 lidar_filter:
   ros__parameters:
-    scan_filter_chain:
-      - name: left_chassis_filter
-        type: laser_filters/LaserScanAngularBoundsFilterInPlace
-        params:
-          lower_angle: -3.12413
-          upper_angle: -3
-
-      - name: right_chassis_filter
-        type: laser_filters/LaserScanAngularBoundsFilterInPlace
-        params:
-          lower_angle: 3
-          upper_angle: 3.14159
+    filter1:
+      name: left_chassis_filter
+      type: laser_filters/LaserScanAngularBoundsFilterInPlace
+      params:
+        lower_angle: -3.14159
+        upper_angle: -2.0
+    filter2:
+      name: right_chassis_filter
+      type: laser_filters/LaserScanAngularBoundsFilterInPlace
+      params:
+        lower_angle: 2.0
+        upper_angle: 3.14159
