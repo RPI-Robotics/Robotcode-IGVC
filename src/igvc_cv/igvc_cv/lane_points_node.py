@@ -3,6 +3,7 @@
 import math
 import warnings
 from typing import List, Tuple
+import copy
 
 import cv2
 import numpy as np
@@ -13,6 +14,9 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs_py import point_cloud2
+import tf2_ros
+from rclpy.time import Time
+from rclpy.duration import Duration
 
 
 class LanePointsNode(Node):
@@ -38,15 +42,6 @@ class LanePointsNode(Node):
         self.declare_parameter("normalize_beta", 255)
         self.declare_parameter("normalize_alpha", 0)
 
-        # Canny / Hough
-        self.declare_parameter("canny_low", 50)
-        self.declare_parameter("canny_high", 150)
-        self.declare_parameter("hough_threshold", 25)
-        self.declare_parameter("hough_min_line_length", 35)
-        self.declare_parameter("hough_max_line_gap", 30)
-        self.declare_parameter("line_sample_step_px", 5)
-        
-
         # 3D filtering
         self.declare_parameter("min_range_m", 0.3)
         self.declare_parameter("max_range_m", 5.0)
@@ -54,6 +49,10 @@ class LanePointsNode(Node):
         self.declare_parameter("max_points", 3000)
         self.declare_parameter("max_z", 1.0)
         self.declare_parameter("max_dz", 1.0)
+        
+        self.declare_parameter("base_frame", "base_link")
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         self.bridge = CvBridge()
 
@@ -144,7 +143,9 @@ class LanePointsNode(Node):
         if len(points) > max_points:
             points = points[np.random.choice(len(points), max_points, replace=False)]
 
-        self.publish_points(cloud_msg.header, points.tolist())
+        out_header = copy.copy(cloud_msg.header)
+        out_header.frame_id = self.get_parameter("base_frame").value
+        self.publish_points(out_header, points.tolist())
 
         debug_msg = self.bridge.cv2_to_imgmsg(line_mask.astype(np.uint8) * 255, encoding="mono8")
         debug_msg.header = image_msg.header
@@ -169,6 +170,11 @@ class LanePointsNode(Node):
         self.publish_debug_image(self.input_pub, bgr)
         
         xyz_mat = self.cloud_to_xyz_matrix(cloud_msg)
+        try:
+            xyz_mat = self.to_base_frame(xyz_mat, cloud_msg)
+        except Exception as exc:
+            self.get_logger().warn(f"TF lookup failed: {exc}", throttle_duration_sec=2.0)
+            return np.empty((0, 3), np.float32), np.zeros((1, 1), bool)
         xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
         dzdr_mat = xyz_diff_mat[:,:,2] / np.clip(np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2), 1e-6, None)
@@ -228,6 +234,10 @@ class LanePointsNode(Node):
         z_mask = roi_z_img < float(self.get_parameter("max_z").value)
         dz_mask = np.abs(roi_dz_img) < float(self.get_parameter("max_dz").value)
         line_mask = (mask > 0) & z_mask & dz_mask
+        line_mask = line_mask.astype(np.uint8)
+        
+        line_mask = cv2.morphologyEx(line_mask, cv2.MORPH_OPEN, kernel)
+        line_mask = cv2.morphologyEx(line_mask, cv2.MORPH_CLOSE, kernel)
         
         self.publish_debug_image(self.lines_pub, line_mask.astype(np.uint8) * 255)
 
@@ -267,6 +277,23 @@ class LanePointsNode(Node):
         msg = point_cloud2.create_cloud_xyz32(header, points)
         self.points_pub.publish(msg)
 
+    def to_base_frame(self, xyz: np.ndarray, cloud_msg) -> np.ndarray:
+        """Transform an (H, W, 3) array from the cloud's frame into base_frame."""
+        t = self.tf_buffer.lookup_transform(
+            self.get_parameter("base_frame").value,
+            cloud_msg.header.frame_id,
+            Time(),                      # latest; the camera mount is static, so this is fine
+            timeout=Duration(seconds=0.1),
+        ).transform
+        q = t.rotation
+        x, y, z, w = q.x, q.y, q.z, q.w
+        R = np.array([
+            [1 - 2*(y*y + z*z), 2*(x*y - z*w),     2*(x*z + y*w)],
+            [2*(x*y + z*w),     1 - 2*(x*x + z*z), 2*(y*z - x*w)],
+            [2*(x*z - y*w),     2*(y*z + x*w),     1 - 2*(x*x + y*y)],
+        ], dtype=np.float32)
+        tr = np.array([t.translation.x, t.translation.y, t.translation.z], dtype=np.float32)
+        return xyz @ R.T + tr            # NaNs stay NaN
 
 def main(args=None):
     rclpy.init(args=args)

@@ -7,7 +7,7 @@ lane_points_node:
 
     roi_top_fraction: 0.40
     roi_bottom_fraction: 0.90
-    min_value: 85   
+    min_value: 150   
     max_saturation: 60
 
     blur_kernel_size: 11
@@ -27,5 +27,5 @@ lane_points_node:
     max_range_m: 10.0
     max_abs_xyz_m: 20.0
     max_points: 3000
-    max_z: 1.0
-    max_dz: 1.0
+    max_z: 0.05
+    max_dz: 10000.0
