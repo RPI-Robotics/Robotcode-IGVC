@@ -7,7 +7,7 @@ from igvc_launch_utils.launch_helper import *
 def generate_launch_description(): 
     
     # Declare args
-  
+    gps_config = get_config('igvc_hardware', 'unicore_driver_params.yaml')
     # should use /dev/serial/by-id/ or /dev/serial/by-path/ to avoid conflict with gps
     launch_args = [ DeclareLaunchArgument(
         'micro_ros_port',
@@ -20,12 +20,12 @@ def generate_launch_description():
             description='path to serial port for GPS module'),
       DeclareLaunchArgument(
           name='enable_ntrip',
-          default_value=False,
+          default_value='false',
           description='whether to enable NTRIP functionality'),
       DeclareLaunchArgument(
           name='ntrip_user',
           default_value='user',
-          description='username for NTRIP authentication'),
+          description='username for NTRIP authentication')
     ]
     
     micro_ros_arg = LaunchConfiguration('micro_ros_port')
@@ -51,13 +51,13 @@ def generate_launch_description():
     )
           
     launch_gps_node = get_launch_file('unicore_um982_driver', 'unicore.launch.py',
-        parameters=[{
-            "config_file" :  get_config('unicore_um982_driver', 'unicore_driver_params.yaml'),
+        launch_arguments={
+            "config_file" :  gps_config,
             "enable_ntrip" : enable_ntrip,
             "ntrip_user" : ntrip_user,
             "ntrip_pass" : "none",
             "gps_port" : gps_port
-        }],  
+        }.items(),  
     )
             
     launch_micro_ros_agent_node = get_node("micro_ros_agent", "micro_ros_agent",
@@ -73,6 +73,6 @@ def generate_launch_description():
         launch_micro_ros_agent_node,
         launch_zed_node,
         launch_rplidar_node,
-        launch_gps_node,
+        launch_gps_node
     ]
     return LaunchDescription(nodes)
