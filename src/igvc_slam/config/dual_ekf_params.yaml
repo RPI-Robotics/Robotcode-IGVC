@@ -80,10 +80,11 @@ navsat_transform:
   ros__parameters:
     frequency: 30.0
     delay: 3.0
-    magnetic_declination_radians: -0.132 #7.61 deg
-    yaw_offset: 0.0 #TODO: EXPECTS YAW = 0 WHEN FACING EAST! likely pi/2 rads
-    zero_altitude: true
-    broadcast_cartesian_transform: false #TODO: may have to change if map transform doesn't work
-    publish_filtered_gps: true
-    use_odometry_yaw: true #TODO: set to true if compass will not work
-    wait_for_datum: false
+    magnetic_declination_radians: 0.0 # RTK heading is referenced to true north, not magnetic north
+    yaw_offset: 0.0 # RTK heading must already be converted to ROS ENU yaw (0 = East, CCW positive)   
+    publish_filtered_gps: true # Publish GPS position transformed back from filtered odometry
+    use_odometry_yaw: false # Use RTK heading from /imu/data instead of EKF odometry yaw (set to true if compass doesn't work)
+    wait_for_datum: false # Initialize from first valid GPS fix
+    zero_altitude: true # Ground robot operating in 2D
+    broadcast_cartesian_transform: false # No UTM -> world TF required currently
+    transform_timeout: 0.0 # Default TF lookup behavior
