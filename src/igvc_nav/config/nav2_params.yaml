@@ -164,7 +164,7 @@ global_costmap:
         footprint_clearing_enabled: true
         combination_method: 1
         scan:
-          topic: /scan
+          topic: /scan_filtered
           max_obstacle_height: 2.0
           clearing: true
           marking: true
@@ -230,7 +230,7 @@ local_costmap:
         footprint_clearing_enabled: true
         combination_method: 1
         scan:
-          topic: /scan
+          topic: /scan_filtered
           max_obstacle_height: 2.0
           clearing: true
           marking: true
@@ -382,7 +382,7 @@ collision_monitor:
 
     observation_sources: ["scan"]
     scan:
-      topic: /scan
+      topic: /scan_filtered
       max_obstacle_height: 2.0
       clearing: true
       marking: true

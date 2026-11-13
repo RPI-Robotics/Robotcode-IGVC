@@ -21,10 +21,12 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 RUN apt-get update && apt-get upgrade -y
 
-# Unconditional installs
-RUN apt-get install -y \
+## Unconditional installs
+RUN apt-get update && apt-get install -y \
     python3-pip \
-    ros-jazzy-rmw-cyclonedds-cpp 
+    ros-jazzy-rmw-cyclonedds-cpp \
+    ros-jazzy-laser-filters \
+    && rm -rf /var/lib/apt/lists/*
 
 ## Simulation only
 RUN if $SIM_ENABLED ; then \
