@@ -68,30 +68,30 @@ def test_full_clear_success(costmap_node):
     # simulate local costmap service being available
     costmap_node.local_costmap_client.service_is_ready = Mock(
         return_value=True)
-    
+
     # simulate global costmap service being available
     costmap_node.global_costmap_client.service_is_ready = Mock(
         return_value=True)
-    
+
     # simulate local costmap clear success
     costmap_node.local_costmap_client.call_async = Mock(
         side_effect=successful_future
     )
-    
+
     # simulate global costmap clear success
     costmap_node.global_costmap_client.call_async = Mock(
         side_effect=successful_future
     )
-    
+
     # create a request/response via the Trigger library
     request = Trigger.Request()
     response = Trigger.Response()
-    
+
     # run the asynchronous callback
     result = asyncio.run(
         costmap_node.clear_costmaps_callback(
             request, response))
-    
+
     # ensure both clearing requests were actually sent
     costmap_node.local_costmap_client.call_async.assert_called_once()
     costmap_node.global_costmap_client.call_async.assert_called_once()
@@ -99,11 +99,44 @@ def test_full_clear_success(costmap_node):
     # ensure correct response
     assert result.success is True
     assert result.message == 'Local & global costmaps successfully cleared'
-    
+
 #test where both costmap services are available but local clearing fails
 def test_local_clear_fail(costmap_node):
-    pass
-    
+    # simulate local costmap service being available
+    costmap_node.local_costmap_client.service_is_ready = Mock(
+        return_value=True)
+
+    # simulate global costmap service being available
+    costmap_node.global_costmap_client.service_is_ready = Mock(
+        return_value=True)
+
+    # simulate local costmap clear failure
+    costmap_node.local_costmap_client.call_async = Mock(
+        side_effect=failed_future
+    )
+
+    # simulate global costmap clear success
+    costmap_node.global_costmap_client.call_async = Mock(
+        side_effect=successful_future
+    )
+
+    # create a request/response via the Trigger library
+    request = Trigger.Request()
+    response = Trigger.Response()
+
+    # run the asynchronous callback
+    result = asyncio.run(
+        costmap_node.clear_costmaps_callback(
+            request, response))
+
+    # ensure both clearing requests were actually sent
+    costmap_node.local_costmap_client.call_async.assert_called_once()
+    costmap_node.global_costmap_client.call_async.assert_called_once()
+
+    # ensure correct response
+    assert result.success is False
+    assert result.message == 'A costmap clear request failed: Simulated costmap clearing failure'
+
 #test where both costmap services are available but global clearing fails
 def test_global_clear_fail(costmap_node):
     pass
@@ -112,4 +145,10 @@ def test_global_clear_fail(costmap_node):
 def successful_future(_request):
     future = asyncio.Future()
     future.set_result(None)
+    return future
+
+#helper to simulate a failed future
+def failed_future(_request):
+    future = asyncio.Future()
+    future.set_exception(Exception('Simulated costmap clearing failure'))
     return future
