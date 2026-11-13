@@ -3,7 +3,8 @@
     <joint name="laser_joint" type="fixed">
         <parent link="base_link"/>
         <child link="laser_frame"/>
-        <origin xyz="-0.05 0.605 0.50" rpy="0 0 ${-pi/2}"/>
+        <!-- ask mechanical team for real offset. Try to have yaw be as close to -pi/2 as possible--> 
+        <origin xyz="-0.05 0.90 0.50" rpy="0 0 ${-pi/2 - 3*pi/180}"/>   
     </joint>
 
     <link name="laser_frame">
