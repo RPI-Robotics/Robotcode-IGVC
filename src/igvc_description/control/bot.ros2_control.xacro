@@ -9,6 +9,7 @@
         <hardware>
           <plugin>odrive_ros2_control_plugin/ODriveHardwareInterface</plugin>
           <param name="can">can2</param>
+          <param name="gear_ratio">25.0</param>
         </hardware>
       </xacro:unless>
 
