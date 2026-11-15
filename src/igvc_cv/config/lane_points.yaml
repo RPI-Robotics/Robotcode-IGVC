@@ -7,8 +7,10 @@ lane_points_node:
 
     roi_top_fraction: 0.40
     roi_bottom_fraction: 0.90
-    min_value: 150   
-    max_saturation: 60
+    # Pixel is "bright" if V >= min_value_ratio * local median V (shadow-robust; replaces min_value)
+    min_value_ratio: 1.15
+    local_median_ksize: 61   # odd, wider than the widest line in the image (~40 px near the robot)
+    max_saturation: 40       
 
     blur_kernel_size: 11
     blur_sigma: 2.0
@@ -28,4 +30,5 @@ lane_points_node:
     max_abs_xyz_m: 20.0
     max_points: 3000
     max_z: 0.05
-    max_dz: 10000.0
+    max_dz: 2.0
+    depth_fill_ksize: 9      # fill stereo holes on paint before z/dz/range filters (0 = off)

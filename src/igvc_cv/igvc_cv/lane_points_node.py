@@ -32,8 +32,12 @@ class LanePointsNode(Node):
         self.declare_parameter("roi_top_fraction", 0.40)
         self.declare_parameter("roi_bottom_fraction", 0.9)
         self.declare_parameter("max_saturation", 255)
-        self.declare_parameter("min_value", 0)
-        
+        # Brightness test is relative to the local background so it survives shadows: a pixel passes
+        # if V / median(V over local_median_ksize x local_median_ksize) >= min_value_ratio.
+        # local_median_ksize must be odd and wider than the widest line in the image.
+        self.declare_parameter("min_value_ratio", 1.15)
+        self.declare_parameter("local_median_ksize", 61)
+
         # Blur
         self.declare_parameter("blur_kernel_size", 11)
         self.declare_parameter("blur_sigma", 0.0)
@@ -49,6 +53,9 @@ class LanePointsNode(Node):
         self.declare_parameter("max_points", 3000)
         self.declare_parameter("max_z", 1.0)
         self.declare_parameter("max_dz", 1.0)
+        # Fill NaN cloud points (stereo fails on textureless paint) with the median of their
+        # depth_fill_ksize x depth_fill_ksize neighbourhood before z/dz/range filtering. 0 = off.
+        self.declare_parameter("depth_fill_ksize", 9)
         
         self.declare_parameter("base_frame", "base_link")
         self.tf_buffer = tf2_ros.Buffer()
@@ -175,12 +182,18 @@ class LanePointsNode(Node):
         except Exception as exc:
             self.get_logger().warn(f"TF lookup failed: {exc}", throttle_duration_sec=2.0)
             return np.empty((0, 3), np.float32), np.zeros((1, 1), bool)
+
+        # Stereo depth has holes on uniform white paint (~13% of line pixels in testing); fill them
+        # from neighbouring points so those line pixels survive the z/dz/range filters.
+        depth_fill_ksize = int(self.get_parameter("depth_fill_ksize").value)
+        if depth_fill_ksize > 1:
+            xyz_mat = self.fill_nan_local_mean(xyz_mat, depth_fill_ksize)
+
         xyz_img = cv2.resize(xyz_mat, (w, h), interpolation=cv2.INTER_NEAREST)
         xyz_diff_mat = np.diff(xyz_mat, axis=0)
         dzdr_mat = xyz_diff_mat[:,:,2] / np.clip(np.sqrt(xyz_diff_mat[:,:,0]**2 + xyz_diff_mat[:,:,1]**2), 1e-6, None)
 
-        z_cloud = self.fill_nan_median(xyz_mat[:, :, 2], 5) 
-        self.publish_debug_image(self.z_pub, cv2.resize(z_cloud, (w, h), interpolation=cv2.INTER_NEAREST))
+        self.publish_debug_image(self.z_pub, xyz_img[:, :, 2].copy())
 
         # dzdr has one fewer row than the cloud, so pad row 0 with NaN to keep pixels aligned, then upscale like z
         dzdr_cloud = np.full(xyz_mat.shape[:2], np.nan, dtype=np.float32)
@@ -196,7 +209,8 @@ class LanePointsNode(Node):
         roi_top = int(h * float(self.get_parameter("roi_top_fraction").value))
         roi_bottom = int(h * float(self.get_parameter("roi_bottom_fraction").value))
         max_saturation = int(self.get_parameter("max_saturation").value)
-        min_value = int(self.get_parameter("min_value").value)
+        min_value_ratio = float(self.get_parameter("min_value_ratio").value)
+        local_median_ksize = int(self.get_parameter("local_median_ksize").value) | 1  # must be odd
         normalization_beta = float(self.get_parameter("normalize_beta").value)
         normalization_alpha = float(self.get_parameter("normalize_alpha").value)
         blur_kernel_size = int(self.get_parameter("blur_kernel_size").value)
@@ -220,7 +234,10 @@ class LanePointsNode(Node):
         saturation = hsv[:, :, 1]
         value = hsv[:, :, 2]
 
-        value_mask = min_value <= value
+        # A shadow dims the line and the pavement around it by about the same factor, so compare
+        # each pixel to its local background instead of using an absolute V threshold.
+        local_value = cv2.medianBlur(value, local_median_ksize).astype(np.float32)
+        value_mask = value >= min_value_ratio * np.maximum(local_value, 1.0)
         saturation_mask = saturation <= max_saturation
 
         mask = (value_mask & saturation_mask).astype(np.uint8)
@@ -231,8 +248,9 @@ class LanePointsNode(Node):
 
         self.publish_debug_image(self.mask_pub, mask * 255)
 
-        z_mask = roi_z_img < float(self.get_parameter("max_z").value)
-        dz_mask = np.abs(roi_dz_img) < float(self.get_parameter("max_dz").value)
+        with np.errstate(invalid="ignore"):  # NaN (no depth) compares False, i.e. rejected
+            z_mask = roi_z_img < float(self.get_parameter("max_z").value)
+            dz_mask = np.abs(roi_dz_img) < float(self.get_parameter("max_dz").value)
         line_mask = (mask > 0) & z_mask & dz_mask
         line_mask = line_mask.astype(np.uint8)
         
@@ -241,22 +259,22 @@ class LanePointsNode(Node):
         
         self.publish_debug_image(self.lines_pub, line_mask.astype(np.uint8) * 255)
 
-        line_points = xyz_img[roi_top:roi_bottom][line_mask]
+        line_points = xyz_img[roi_top:roi_bottom][line_mask.astype(bool)]
         return line_points, line_mask
 
-    def fill_nan_median(self, img: np.ndarray, ksize: int) -> np.ndarray:
-        """Replace each NaN with the median of the non-NaN values in its ksize x ksize neighborhood.
-        Pixels whose whole neighborhood is NaN stay NaN."""
-        out = np.ascontiguousarray(img, dtype=np.float32).copy()
-        nan_r, nan_c = np.nonzero(np.isnan(out))
-        if len(nan_r) == 0:
-            return out
-        pad = ksize // 2
-        padded = np.pad(out, pad, mode="constant", constant_values=np.nan)
-        windows = np.lib.stride_tricks.sliding_window_view(padded, (ksize, ksize))
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN neighborhoods
-            out[nan_r, nan_c] = np.nanmedian(windows[nan_r, nan_c], axis=(1, 2))
+    @staticmethod
+    def fill_nan_local_mean(xyz: np.ndarray, ksize: int) -> np.ndarray:
+        """Replace each invalid (non-finite) point of an (H, W, 3) cloud with the mean of the valid
+        points in its ksize x ksize neighbourhood. Points with no valid neighbours stay NaN.
+        """
+        valid = np.all(np.isfinite(xyz), axis=2)
+        vals = np.where(valid[:, :, None], xyz, 0).astype(np.float32)
+        sums = cv2.boxFilter(vals, -1, (ksize, ksize), normalize=False, borderType=cv2.BORDER_CONSTANT)
+        counts = cv2.boxFilter(valid.astype(np.float32), -1, (ksize, ksize), normalize=False,
+                               borderType=cv2.BORDER_CONSTANT)
+        out = xyz.astype(np.float32, copy=True)
+        fill = ~valid & (counts > 0.5)
+        out[fill] = sums[fill] / counts[fill][:, None]
         return out
 
     def cloud_to_xyz_matrix(self, cloud_msg: PointCloud2) -> np.ndarray:
