@@ -139,53 +139,36 @@ class LaneDirectorNode(Node):
         """
         base_frame = self.get_parameter("base_frame").value
 
-        try:
-            transform = self.tf_buffer.lookup_transform(
-                base_frame,
-                cloud_msg.header.frame_id,
-                rclpy.time.Time(),
-                timeout=rclpy.duration.Duration(seconds=0.1),
-            )
-        except Exception as exc:
-            self.get_logger().warn(
-                f"Could not lookup TF {base_frame} <- {cloud_msg.header.frame_id}: {exc}",
-            )
-            return None
-
-        raw_points = []
-        for p in point_cloud2.read_points(
+        # Read all points at once as an (N, 3) array.
+        points = point_cloud2.read_points_numpy(
             cloud_msg,
             field_names=("x", "y", "z"),
             skip_nans=True,
-        ):
-            x = float(p[0])
-            y = float(p[1])
-            z = float(p[2])
+        ).astype(np.float32)
+        points = points[np.all(np.isfinite(points), axis=1)]  # skip_nans misses +/-inf
 
-            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(z)):
-                continue
-
-            ps = PointStamped()
-            ps.header = cloud_msg.header
-            ps.point.x = x
-            ps.point.y = y
-            ps.point.z = z
-
-            try:
-                pt_base = do_transform_point(ps, transform)
-            except Exception:
-                continue
-
-            raw_points.append([
-                pt_base.point.x,
-                pt_base.point.y,
-                pt_base.point.z,
-            ])
-
-        if not raw_points:
+        if len(points) == 0:
             return None
 
-        points = np.array(raw_points, dtype=np.float32)
+        # lane_points_node already publishes in base_frame, so normally no TF is needed.
+        if cloud_msg.header.frame_id != base_frame:
+            try:
+                transform = self.tf_buffer.lookup_transform(
+                    base_frame,
+                    cloud_msg.header.frame_id,
+                    rclpy.time.Time(),
+                    timeout=rclpy.duration.Duration(seconds=0.1),
+                )
+            except Exception as exc:
+                self.get_logger().warn(
+                    f"Could not lookup TF {base_frame} <- {cloud_msg.header.frame_id}: {exc}",
+                )
+                return None
+
+            # Apply the transform to every point in one matrix multiply.
+            t = transform.transform
+            translation = np.array([t.translation.x, t.translation.y, t.translation.z], dtype=np.float32)
+            points = points @ self.quat_to_rot(t.rotation).T + translation
 
         min_x = float(self.get_parameter("min_x_m").value)
         max_x = float(self.get_parameter("max_x_m").value)
@@ -200,6 +183,16 @@ class LaneDirectorNode(Node):
         )
 
         return points[mask]
+
+    @staticmethod
+    def quat_to_rot(q) -> np.ndarray:
+        """3x3 rotation matrix from a unit geometry_msgs Quaternion."""
+        x, y, z, w = q.x, q.y, q.z, q.w
+        return np.array([
+            [1 - 2*(y*y + z*z), 2*(x*y - z*w),     2*(x*z + y*w)],
+            [2*(x*y + z*w),     1 - 2*(x*x + z*z), 2*(y*z - x*w)],
+            [2*(x*z - y*w),     2*(y*z + x*w),     1 - 2*(x*x + y*y)],
+        ], dtype=np.float32)
 
     def compute_center_goal(self, points_base: np.ndarray) -> Optional[Tuple[float, float]]:
         """
